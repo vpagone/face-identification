@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+#Import the OpenCV and dlib libraries
 import threading
 import os
 import sys
@@ -21,15 +22,6 @@ COSINE_THRESHOLD = 0.45
 
 OUTPUT_SIZE_WIDTH = 640
 OUTPUT_SIZE_HEIGHT = 480
-
-def get_encoded_known_faces():
-
-    encodings_location = os.path.join(directory, "output", "encodings.pkl")
-
-    with Path(encodings_location).open(mode="rb") as f:
-        loaded_encodings = pickle.load(f)
-
-    return loaded_encodings['names'], loaded_encodings['encodings']
 
 
 def detect_faces(image, face_detector):
@@ -66,6 +58,7 @@ def detect_faces(image, face_detector):
 
 
 def match(recognizer, feature1, names, encodings):
+
     max_score = 0.0
     sim_user_id = ""
     for user_id, feature2 in zip(names, encodings):
@@ -117,7 +110,7 @@ def recognize_face(image, face_detector, face_recognizer, file_name=None):
         print(file_name)
         return None, None
     
-def identify_face(image, face, face_recognizer, faceID, faceNames, faceScores):
+def identify_face(image, face, face_recognizer, faceID, faceNames, faceScores, names, encodings):
  
     #print(f'{time.time()} trying to identify fid: {faceID}')
 
@@ -157,13 +150,9 @@ def identify_face(image, face, face_recognizer, faceID, faceNames, faceScores):
         return None
 
 
-def detectAndTrackMultipleFaces():
+def detectAndTrackMultipleFaces(source, face_detector, face_recognizer, names, encodings):
     #Open the first webcame device
-    #capture = cv2.VideoCapture(0)
-    capture = cv2.VideoCapture('/home/vito/r/videocamara/1682921183173.mp4')
-    #capture = cv2.VideoCapture('/home/vito/r/videocamara/1692455074607.mp4')
-    #capture = cv2.VideoCapture('/home/vito/r/videocamara/1692502753042.mp4')
-    #capture = cv2.VideoCapture('/home/vito/r/videocamara/1692606706027.mp4')
+    capture = cv2.VideoCapture(source)
 
     fps = capture.get(cv2.CAP_PROP_FPS)
     print("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
@@ -177,7 +166,7 @@ def detectAndTrackMultipleFaces():
     #cv2.moveWindow("result-image",400,100)
 
     #Start the window thread for the two windows we are using
-    #cv2.startWindowThread()
+    cv2.startWindowThread()
 
     #The color of the rectangle we draw around the face
     rectangleColor = (0,165,255)
@@ -356,7 +345,7 @@ def detectAndTrackMultipleFaces():
                         #t = threading.Thread( target = identify_face,
                         #                        args=(baseImage, face, face_recognizer, currentFaceID, faceNames, faceScores))
                         #t.start()
-                        identify_face(baseImage, face, face_recognizer, currentFaceID, faceNames, faceScores)
+                        identify_face(baseImage, face, face_recognizer, currentFaceID, faceNames, faceScores, names, encodings)
 
                         #Increase the currentFaceID counter
                         currentFaceID += 1
@@ -367,7 +356,7 @@ def detectAndTrackMultipleFaces():
                         #     t = threading.Thread( target = identify_face,
                         #                        args=(baseImage, face, face_recognizer, matchedFid, faceNames, faceScores))
                         #     t.start()
-                            identify_face(baseImage, face, face_recognizer, matchedFid, faceNames, faceScores)
+                            identify_face(baseImage, face, face_recognizer, matchedFid, faceNames, faceScores, names, encodings)
 
                 for fid in unusedTrackers:
                     print("Removing fid " + str(fid) + " from list of trackers")
@@ -444,44 +433,3 @@ def detectAndTrackMultipleFaces():
     #Destroy any OpenCV windows and exit the application
     cv2.destroyAllWindows()
     exit(0)
-
-
-if __name__ == '__main__':
-
-    # contain npy for embedings and registration photos
-    directory = 'data'
-
-    # Init models face detection & recognition
-    weights = os.path.join(directory, "models",
-                           "face_detection_yunet_2022mar.onnx")
-    face_detector = cv2.FaceDetectorYN_create(weights, "", (0, 0))
-    face_detector.setScoreThreshold(0.87)
-
-    weights = os.path.join(directory, "models", "face_recognizer_fast.onnx")
-    face_recognizer = cv2.FaceRecognizerSF_create(weights, "")
-
-    # Get registered photos and return as npy files
-    # File name = id name, embeddings of a photo is the representative for the id
-    # If many files have the same name, an average embedding is used
-    # dictionary = {}
-    # # the tuple of file types, please ADD MORE if you want
-    # types = ('*.jpg', '*.png', '*.jpeg', '*.JPG', '*.PNG', '*.JPEG')
-    # files = []
-    # for a_type in types:
-    #     files.extend(glob.glob(os.path.join(directory, 'images', a_type)))
-
-    # files = list(set(files))
-
-    # for file in tqdm(files):
-    #     image = cv2.imread(file)
-    #     feats, faces = recognize_face(image, face_detector, face_recognizer, file)
-    #     if faces is None:
-    #         continue
-    #     user_id = os.path.splitext(os.path.basename(file))[0]
-    #     dictionary[user_id] = feats[0]
-    # print(f'there are {len(dictionary)} ids')
-
-    names, encodings = get_encoded_known_faces()
-
-    detectAndTrackMultipleFaces()
-    
