@@ -33,6 +33,17 @@ def encode_known_faces( directory, face_detector, face_recognizer ):
     with Path(encodings_location).open(mode="wb") as f:
         pickle.dump(name_encodings, f)
 
+
+def load_encoded_known_faces(directory):
+
+    encodings_location = os.path.join(directory, "output", "encodings.pkl")
+
+    with Path(encodings_location).open(mode="rb") as f:
+        loaded_encodings = pickle.load(f)
+
+    return loaded_encodings['names'], loaded_encodings['encodings']
+
+
 if __name__ == '__main__':
 
     # contain npy for embedings and registration photos
@@ -48,3 +59,4 @@ if __name__ == '__main__':
     face_recognizer = cv2.FaceRecognizerSF_create(weights, "")
 
     encode_known_faces( directory, face_detector, face_recognizer )
+    
