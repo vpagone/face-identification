@@ -1,0 +1,6 @@
+multiple sources management
+log file
+configuration file
+gui
+monitoring feature
+handling large number of know faces encodings
