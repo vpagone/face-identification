@@ -4,3 +4,4 @@ configuration file
 gui
 monitoring feature
 handling large number of know faces encodings
+lfw and video examples
