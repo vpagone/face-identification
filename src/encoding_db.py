@@ -5,7 +5,43 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
-from core import recognize_face
+import time
+
+def recognize_face(image, file_name=None):
+        channels = 1 if len(image.shape) == 2 else image.shape[2]
+        if channels == 1:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        if channels == 4:
+            image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+
+        if image.shape[0] > 1000:
+            image = cv2.resize(image, (0, 0),
+                            fx=500 / image.shape[0], fy=500 / image.shape[0])
+
+        height, width, _ = image.shape
+        face_detector.setInputSize((width, height))
+        try:
+            dts = time.time()
+            _, faces = face_detector.detect(image)
+            if file_name is not None:
+                assert len(faces) > 0, f'the file {file_name} has no face'
+
+            faces = faces if faces is not None else []
+            features = []
+            ## print(f'{time.time()} time detection  = {time.time() - dts}')
+            for face in faces:
+                rts = time.time()
+
+                aligned_face = face_recognizer.alignCrop(image, face)
+                feat = face_recognizer.feature(aligned_face)
+                ## print(f'{time.time()} time recognition  = {time.time() - rts}')
+
+                features.append(feat)
+            return features, faces
+        except Exception as e:
+            print(e)
+            print(file_name)
+            return None, None
 
 def encode_known_faces( directory, face_detector, face_recognizer ):
 
@@ -20,7 +56,7 @@ def encode_known_faces( directory, face_detector, face_recognizer ):
         name = filepath.parent.name
         file = os.path.join("data/images", filepath.parent.name, filepath.name)
         image = cv2.imread(file)
-        features, faces = recognize_face(image, face_detector, face_recognizer, file)
+        features, faces = recognize_face(image, file)
         if faces is None:
             continue
 
@@ -59,4 +95,3 @@ if __name__ == '__main__':
     face_recognizer = cv2.FaceRecognizerSF_create(weights, "")
 
     encode_known_faces( directory, face_detector, face_recognizer )
-    

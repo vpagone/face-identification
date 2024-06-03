@@ -1,35 +1,54 @@
 import os
 import cv2
-import threading
-
-from encoding_db import encode_known_faces, load_encoded_known_faces
-from core import detectAndTrackMultipleFaces
-
+from core import FaceIdentifier
+from threading import Thread, Lock
+from multiprocessing import Process
+import time
+from frame_producer import FrameProducer
 
 if __name__ == '__main__':
 
+    #load configuration file
     # contain npy for embedings and registration photos
     directory = 'data'
 
-    # Init models face detection & recognition
-    weights = os.path.join(directory, "models",
-                           "face_detection_yunet_2022mar.onnx")
-    face_detector = cv2.FaceDetectorYN_create(weights, "", (0, 0))
-    face_detector.setScoreThreshold(0.87)
-
-    weights = os.path.join(directory, "models", "face_recognizer_fast.onnx")
-    face_recognizer = cv2.FaceRecognizerSF_create(weights, "")
-
-    names, encodings = load_encoded_known_faces(directory)
-
-    #source = 0 # first webcam
-    source = '/home/vito/r/videocamara/1682921183173.mp4'
-    #source = '/home/vito/r/videocamara/1692455074607.mp4'
     #source = '/home/vito/r/videocamara/1692502753042.mp4'
     #source = '/home/vito/r/videocamara/1692606706027.mp4'
 
-    t = threading.Thread( target = detectAndTrackMultipleFaces,
-                    args=(source, face_detector, face_recognizer, names, encodings))
-    t.start()
-    #detectAndTrackMultipleFaces(source, face_detector, face_recognizer, names, encodings)
+    source = '/home/vito/r/videocamara/1682921183173.mp4'
+    #source = 0
+    id = 'fi-01'
+    fp_1 = FrameProducer(source, id + '_queue')
+    fi_1 = FaceIdentifier(id, directory, source)
+
+    source = '/home/vito/r/videocamara/1692455074607.mp4'
+    #source = 0
+    id = 'fi-02'
+    fp_2 = FrameProducer(source, id + '_queue')
+    fi_2 = FaceIdentifier(id, directory, source)
+
+ 
+    # start processes
+    fp_proc_1 = Process(target = fp_1.produce)
+    fp_proc_1.start()
+    time.sleep(1)
+    fi_proc_1 = Process(target = fi_1.detectAndTrackMultipleFaces)
+    fi_proc_1.start()
+
+    fp_proc_2 = Process(target = fp_2.produce)
+    fp_proc_2.start()
+    time.sleep(1)
+    fi_proc_2 = Process(target = fi_2.detectAndTrackMultipleFaces)
+    fi_proc_2.start()
+   
+    fp_proc_1.join()
+    fi_proc_1.join()
+
+    fp_proc_2.join()
+    fi_proc_2.join()
+
+    
+
+
+
 
