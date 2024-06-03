@@ -13,8 +13,9 @@ from tqdm import tqdm
 import pickle
 from pathlib import Path
 from encoding_db import encode_known_faces, load_encoded_known_faces
-from video_shower import VideoShow
+
 from receive_frame_from_queue import ReceiveFrame
+from send_frame_to_queue import SendFrameToQueue
 
 #COSINE_THRESHOLD = 0.5
 COSINE_THRESHOLD = 0.45
@@ -28,8 +29,6 @@ class FaceIdentifier():
     def __init__(self, id, directory, source):
 
         super().__init__()
-
-        self.video_shower = VideoShow(id)
 
         self.id = id
         self.source = source
@@ -50,6 +49,9 @@ class FaceIdentifier():
 
         self.receive_frame = ReceiveFrame(id + '_queue')
         self.receive_frame.init_connection()
+
+        self.send_frame = SendFrameToQueue(id + '_queue_out')
+        self.send_frame.init_connection()
 
 
     def detect_faces(self, image):
@@ -148,7 +150,7 @@ class FaceIdentifier():
 
 
 
-        self.video_shower.start()
+#        self.video_shower.start()
 
  
 
@@ -184,7 +186,9 @@ class FaceIdentifier():
         faceScores   = {}
 
         try:
+
             while True:
+
                 dtot = time.time()
 
                 #Retrieve the latest image from the webcam
@@ -192,6 +196,9 @@ class FaceIdentifier():
 
                 #fullSizeBaseImage = self.receive_frame.receive_frame_from_queue()
                 baseImage = self.receive_frame.receive_frame_from_queue()
+
+                if ( baseImage is None ):
+                    continue
 
                 #Resize the image to 320x240
                 #baseImage = cv2.resize( fullSizeBaseImage, ( 320, 240))
@@ -430,6 +437,8 @@ class FaceIdentifier():
                 #if (self.id == 'fi-01'):
                 #    cv2.imshow(self.id, largeResult)
                 #self.video_shower.frame = largeResult
+                self.send_frame.send_frame_to_queue(resultImage)
+                
 
                 elapsed = time.time() - dtot
                 print(f'{time.time()} {self.id} time total  = {elapsed} estimated fps: {1/elapsed}')
@@ -449,11 +458,11 @@ class FaceIdentifier():
 
         #print(f'{self.id} before capture')
 
-        capture = cv2.VideoCapture(self.source)
+        #capture = cv2.VideoCapture(self.source)
 
 
 
-        self.video_shower.start()
+#        self.video_shower.start()
 
  
 
