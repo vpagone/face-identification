@@ -1,27 +1,31 @@
+general:
+  - data_dir: '/home/vito/dev/fr-w-sface/data'
+  - log_dir: '/home/vito/dev/fr-w-sface/log'
+
 local_sources:
   - name: local_webcams
     webcams:
     - webcam_name: local_webcaml_1
       webcam_number: 0
-      enable: true
+      enabled: True
     - webcam_name: local_webcaml_1
       webcam_number: 1
-      enable: false
+      enabled: False
   - name: local_video_files
     video_files:
     - video_name: video01
-      location: 'c:\\...'
-      enable: false
+      location: '/home/vito/r/videocamara/1682921183173.mp4'
+      enabled: True
     - video_name: video02
-      location: 'c:\\...'
-      enable: false
+      location: '/home/vito/r/videocamara/1692455074607.mp4'
+      enabled: False
 
 network_sources:
   - name: network_webcams
     webcams:
     - webcam_name: webcamr0
       webcam_ip: x.x.x.x
-      enable: false
+      enabled: 'false'
     - webcam_name: webcamr1
       webcam_ip: y.y.y.y
-      enable: false
+      enabled: 'false'

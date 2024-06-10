@@ -6,7 +6,7 @@ def load_yaml_config(file_path):
         return config
 
 if __name__ == "__main__":
-    config_path = 'config.yaml'
+    config_path = 'cfg/config.yaml'
     config = load_yaml_config(config_path)
        
     local_sources = config.get('local_sources', [])
@@ -19,7 +19,7 @@ if __name__ == "__main__":
             
         video_files = local_source.get('video_files', [])
         for video_file in video_files:
-            print(f"  Video File Name: {video_file['video_name']}, Webcam Number: {video_file['location']}")
+            print(f"  Video File Name: {video_file['video_name']}, File: {video_file['location']}")
             
     remote_sources = config.get('network_sources', [])
     for remote_source in remote_sources:
