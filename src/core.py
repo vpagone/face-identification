@@ -26,12 +26,13 @@ OUTPUT_SIZE_HEIGHT = 480
 
 class FaceIdentifier():
   
-    def __init__(self, id, directory, source):
+    def __init__(self, id, directory, input_queue, output_queue):
 
         super().__init__()
 
         self.id = id
-        self.source = source
+        self.input_queue  = input_queue
+        self.output_queue = output_queue
     
         # Init models face detection & recognition
         weights = os.path.join(directory, 'models',
@@ -47,11 +48,11 @@ class FaceIdentifier():
 
         self.names, self.encodings = load_encoded_known_faces(directory)
 
-        self.receive_frame = ReceiveFrame(id + '_queue')
-        self.receive_frame.init_connection()
+        # self.receive_frame = ReceiveFrame(id + '_queue')
+        # self.receive_frame.init_connection()
 
-        self.send_frame = SendFrameToQueue(id + '_queue_out')
-        self.send_frame.init_connection()
+        # self.send_frame = SendFrameToQueue(id + '_queue_out')
+        # self.send_frame.init_connection()
 
 
     def detect_faces(self, image):
@@ -146,7 +147,7 @@ class FaceIdentifier():
 
         #print(f'{self.id} before capture')
 
-        capture = cv2.VideoCapture(self.source)
+        #capture = cv2.VideoCapture(self.source)
 
 
 
@@ -154,8 +155,8 @@ class FaceIdentifier():
 
  
 
-        fps = capture.get(cv2.CAP_PROP_FPS)
-        print("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
+        #fps = capture.get(cv2.CAP_PROP_FPS)
+        #print("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
 
         #Create two opencv named windows
         #cv2.namedWindow("base-image", cv2.WINDOW_AUTOSIZE)
@@ -195,10 +196,11 @@ class FaceIdentifier():
                 #rc,fullSizeBaseImage = capture.read()
 
                 #fullSizeBaseImage = self.receive_frame.receive_frame_from_queue()
-                baseImage = self.receive_frame.receive_frame_from_queue()
+                #baseImage = self.receive_frame.receive_frame_from_queue()
+                baseImage = self.input_queue.get()
 
                 if ( baseImage is None ):
-                    continue
+                    break
 
                 #Resize the image to 320x240
                 #baseImage = cv2.resize( fullSizeBaseImage, ( 320, 240))
@@ -437,11 +439,12 @@ class FaceIdentifier():
                 #if (self.id == 'fi-01'):
                 #    cv2.imshow(self.id, largeResult)
                 #self.video_shower.frame = largeResult
-                self.send_frame.send_frame_to_queue(resultImage)
+                #self.send_frame.send_frame_to_queue(resultImage)
+                self.output_queue.put(resultImage)
                 
 
                 elapsed = time.time() - dtot
-                print(f'{time.time()} {self.id} time total  = {elapsed} estimated fps: {1/elapsed}')
+                #print(f'{time.time()} {self.id} time total  = {elapsed} estimated fps: {1/elapsed}')
 
 
         #To ensure we can also deal with the user pressing Ctrl-C in the console
@@ -451,84 +454,6 @@ class FaceIdentifier():
             pass
 
         #Destroy any OpenCV windows and exit the application
-        cv2.destroyAllWindows()
-        exit(0)
-
-    def detectAndTrackMultipleFacesFake(self):
-
-        #print(f'{self.id} before capture')
-
-        #capture = cv2.VideoCapture(self.source)
-
-
-
-#        self.video_shower.start()
-
- 
-
-        #fps = capture.get(cv2.CAP_PROP_FPS)
-        #print("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
-
-        #Create two opencv named windows
-        #cv2.namedWindow("base-image", cv2.WINDOW_AUTOSIZE)
-        #cv2.namedWindow(self.id, cv2.WINDOW_AUTOSIZE)
-
-
-
-
-
-        #Position the windows next to eachother
-        #cv2.moveWindow("base-image",0,100)
-        #cv2.moveWindow("result-image",400,100)
-
-        #Start the window thread for the two windows we are using
-        #cv2.startWindowThread()
-
-        #The color of the rectangle we draw around the face
-        rectangleColor = (0,165,255)
-
-        #variables holding the current frame number and the current faceid
-        frameCounter = 0
-        currentFaceID = 1
-
-        #Variables holding the correlation trackers and the name per faceid
-        faceTrackers = {}
-        faceNames    = {}
-        faceBoxes    = {}
-        faceScores   = {}
-
-        try:
-            while True:
-                dtot = time.time()
-
-                #Retrieve the latest image from the webcam
-                #rc,fullSizeBaseImage = capture.read()
-
-                fullSizeBaseImage = self.receive_frame.receive_frame_from_queue()
-
-                #Resize the image to 320x240
-                #baseImage = cv2.resize( fullSizeBaseImage, ( 320, 240))
-                #baseImage = cv2.resize( fullSizeBaseImage, ( 640, 480))
-
-
-
-                #Finally, we want to show the images on the screen
-                #cv2.imshow("base-image", baseImage)
-                #if (self.id == 'fi-01'):
-                #    cv2.imshow(self.id, largeResult)
-                #self.video_shower.frame = fullSizeBaseImage
-
-                elapsed = time.time() - dtot
-                print(f'{time.time()} {self.id} time total  = {elapsed} estimated fps: {1/elapsed}')
-
-
-        #To ensure we can also deal with the user pressing Ctrl-C in the console
-        #we have to check for the KeyboardInterrupt exception and break out of
-        #the main loop
-        except KeyboardInterrupt as e:
-            pass
-
-        #Destroy any OpenCV windows and exit the application
-        cv2.destroyAllWindows()
-        exit(0)
+        #cv2.destroyAllWindows()
+        #exit(0)
 

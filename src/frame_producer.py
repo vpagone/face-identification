@@ -5,16 +5,17 @@ from send_frame_to_queue import SendFrameToQueue
 class FrameProducer():
 
 
-    def __init__(self, source, queue_name):
+    def __init__(self, id, source, queue):
                 
+        self.id = id
         self.source = source
-        self.queue_name = queue_name
+        self.queue = queue
 
 
     def produce(self):
 
-        sendFrame = SendFrameToQueue(self.queue_name)
-        sendFrame.init_connection()
+        # sendFrame = SendFrameToQueue(self.queue_name)
+        # sendFrame.init_connection()
 
         # Create a VideoCapture object
         cap = cv2.VideoCapture(self.source)
@@ -35,15 +36,17 @@ class FrameProducer():
 
             # send frame to queue
             resized = cv2.resize( frame, ( 640, 480) )
-            sendFrame.send_frame_to_queue(resized)
+            #sendFrame.send_frame_to_queue(resized)
             #cv2.imshow(self.queue_name, frame)
+            self.queue.put(resized)
 
             # Press 'q' on the keyboard to exit the loop
-            #if cv2.waitKey(25) & 0xFF == ord('q'):
-            #    break
+            if cv2.waitKey(25) & 0xFF == ord('q'):
+               break
 
         # When everything is done, release the video capture object and close all OpenCV windows
         cap.release()
+        self.queue.put(None)
 
 # test
 if __name__ == '__main__':
