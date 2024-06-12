@@ -12,8 +12,9 @@ import numpy as np
 from tqdm import tqdm
 import pickle
 from pathlib import Path
-from encoding_db import encode_known_faces, load_encoded_known_faces
+import logging
 
+from encoding_db import encode_known_faces, load_encoded_known_faces
 from receive_frame_from_queue import ReceiveFrame
 from send_frame_to_queue import SendFrameToQueue
 
@@ -26,14 +27,15 @@ OUTPUT_SIZE_HEIGHT = 480
 
 class FaceIdentifier():
   
-    def __init__(self, id, directory, input_queue, output_queue):
+    def __init__(self, id, directory, input_queue, output_queue, log_dir):
 
         super().__init__()
 
         self.id = id
         self.input_queue  = input_queue
         self.output_queue = output_queue
-    
+        self.log_dir = log_dir
+
         # Init models face detection & recognition
         weights = os.path.join(directory, 'models',
                             'face_detection_yunet_2022mar.onnx')
@@ -75,11 +77,11 @@ class FaceIdentifier():
 
                 faces = faces if faces is not None else []
         
-                ## print(f'{time.time()} time detection  = {time.time() - dts}')
+                self.logger.info(f' time detection  = {time.time() - dts}')
 
                 return faces
             except Exception as e:
-                print(e)
+                self.loger.error(e)
                 return None
 
 
@@ -102,7 +104,7 @@ class FaceIdentifier():
             if max_score < COSINE_THRESHOLD:
                 #print(f'{time.time()} match: low score = {max_score}')
                 return False, ("", 0.0)
-            #print(f'{time.time()} match: good score = {max_score}')
+            self.logger.info(f' match: score = {max_score}')
             return True, (sim_user_id, max_score)
 
     def identify_face(self, image, face, faceID, faceNames, faceScores):
@@ -128,6 +130,8 @@ class FaceIdentifier():
             aligned_face = self.face_recognizer.alignCrop(image, face)
             feat = self.face_recognizer.feature(aligned_face)
 
+            rts = time.time()
+
             result, (sim_user_id, max_score) = self.match(feat)
 
             if result:
@@ -136,14 +140,22 @@ class FaceIdentifier():
 
             rts = time.time()
 
-            #print(f'{time.time()} time identification  = {time.time() - rts}')
+            self.logger.info(f' time identification  = {time.time() - rts}')
 
             return result  
         except Exception as e:
-            print(e)
+            self.logger.error(e)
             return None
 
     def detectAndTrackMultipleFaces(self):
+
+        self.logger = logging.getLogger(__name__)
+        file_name=path=os.path.join(self.log_dir, __name__ + '.log')
+        logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
+                            filename=file_name, 
+                            level=logging.INFO)
+
+        self.logger.info('Started')
 
         #print(f'{self.id} before capture')
 
@@ -444,7 +456,7 @@ class FaceIdentifier():
                 
 
                 elapsed = time.time() - dtot
-                #print(f'{time.time()} {self.id} time total  = {elapsed} estimated fps: {1/elapsed}')
+                self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')
 
 
         #To ensure we can also deal with the user pressing Ctrl-C in the console

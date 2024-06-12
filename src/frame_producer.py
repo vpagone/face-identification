@@ -1,18 +1,28 @@
 import cv2
+import logging
+import os
 
 from send_frame_to_queue import SendFrameToQueue
 
 class FrameProducer():
 
-
-    def __init__(self, id, source, queue):
+    def __init__(self, id, source, queue, log_dir):
                 
         self.id = id
         self.source = source
         self.queue = queue
-
+        self.log_dir = log_dir
 
     def produce(self):
+
+        self.logger = logging.getLogger(__name__)
+
+        file_name=path=os.path.join(self.log_dir, __name__ + '.log')
+        logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
+                            filename=file_name, 
+                            level=logging.INFO)
+
+        self.logger.info('Started')
 
         # sendFrame = SendFrameToQueue(self.queue_name)
         # sendFrame.init_connection()
@@ -22,7 +32,7 @@ class FrameProducer():
 
         # Check if the video file was opened successfully
         if not cap.isOpened():
-            print("Error: Could not open video.")
+            self.logger.fatal("Error: Could not open video.")
             exit()
 
         # Read until the video is completed
@@ -31,7 +41,7 @@ class FrameProducer():
             ret, frame = cap.read()
 
             if not ret:
-                print("End of video or error in frame capture.")
+                self.logger.info("End of video or error in frame capture.")
                 break
 
             # send frame to queue
@@ -47,6 +57,8 @@ class FrameProducer():
         # When everything is done, release the video capture object and close all OpenCV windows
         cap.release()
         self.queue.put(None)
+
+        self.logger.info('Finished')
 
 # test
 if __name__ == '__main__':
