@@ -2,6 +2,9 @@ import cv2
 import logging
 import os
 
+import base64
+import json
+
 from send_frame_to_queue import SendFrameToQueue
 
 class FrameProducer():
@@ -12,6 +15,11 @@ class FrameProducer():
         self.source = source
         self.queue = queue
         self.log_dir = log_dir
+
+    def encode_frame(self, frame):
+        _, buffer = cv2.imencode('.jpg', frame)
+        encoded_frame = base64.b64encode(buffer).decode('utf-8')
+        return encoded_frame
 
     def produce(self):
 
@@ -30,11 +38,15 @@ class FrameProducer():
         # Create a VideoCapture object
         cap = cv2.VideoCapture(self.source)
 
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        self.logger.info("Frames per second: {}".format(fps))
+
         # Check if the video file was opened successfully
         if not cap.isOpened():
             self.logger.fatal("Error: Could not open video.")
             exit()
 
+        frame_id = 1
         # Read until the video is completed
         while cap.isOpened():
             # Capture frame-by-frame
@@ -48,7 +60,24 @@ class FrameProducer():
             resized = cv2.resize( frame, ( 640, 480) )
             #sendFrame.send_frame_to_queue(resized)
             #cv2.imshow(self.queue_name, frame)
-            self.queue.put(resized)
+            #self.queue.put(resized)
+
+            # Encode the image to Base64
+            encoded_image = self.encode_frame(resized)
+            
+            # Create the JSON object
+            json_object = json.dumps({
+                'frame_id' : frame_id,
+                'names': [],
+                'image': encoded_image
+            })
+    
+            # Put the JSON object into the queue
+            self.queue.put(json_object)
+
+            self.logger.info( 'Put frame {}'.format(frame_id) )
+
+            frame_id += 1
 
             # Press 'q' on the keyboard to exit the loop
             if cv2.waitKey(25) & 0xFF == ord('q'):

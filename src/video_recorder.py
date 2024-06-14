@@ -6,19 +6,18 @@ import base64
 import json
 import numpy as np
 
-from receive_frame_from_queue import ReceiveFrame
-
-class VideoShow:
+class VideoRecorder:
     """
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, queue, log_dir):
+    def __init__(self, id, queue, window_frame, log_dir, out_dir):
 
         self.id = id
         self.queue = queue
         self.stopped = False
         self.log_dir = log_dir
+        self.out_dir = out_dir
 
         # self.receive_frame = ReceiveFrame(queue_name)
         # self.receive_frame.init_connection()
@@ -29,7 +28,7 @@ class VideoShow:
         frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
         return frame
  
-    def show(self):
+    def record(self):
 
         self.logger = logging.getLogger(__name__)
         file_name=path=os.path.join(self.log_dir, __name__ + '.log')
@@ -50,6 +49,8 @@ class VideoShow:
     
             # Extract frame id
             frame_id = data['frame_id']
+
+            names = data['names']
             
             # Extract and decode the image
             frame = self.decode_frame(data['image'])
@@ -57,13 +58,13 @@ class VideoShow:
             if ( frame is None ):
                 break
 
-            #print(f'{self.id} before imshow')
-            cv2.imshow(self.id, frame)
-            #print(f'{self.id} after imshow')
-            if cv2.waitKey(1) == ord("q"):
-                self.stopped = True
+            # #print(f'{self.id} before imshow')
+            # cv2.imshow(self.id, frame)
+            # #print(f'{self.id} after imshow')
+            # if cv2.waitKey(1) == ord("q"):
+            #     self.stopped = True
 
-            self.logger.info('display frame: {}'.format(frame_id))
+            self.logger.info('display frame: {} {}'.format(frame_id, names))
 
         self.logger.info('Finished')
 

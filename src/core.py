@@ -13,6 +13,8 @@ from tqdm import tqdm
 import pickle
 from pathlib import Path
 import logging
+import base64
+import json
 
 from encoding_db import encode_known_faces, load_encoded_known_faces
 from receive_frame_from_queue import ReceiveFrame
@@ -56,6 +58,16 @@ class FaceIdentifier():
         # self.send_frame = SendFrameToQueue(id + '_queue_out')
         # self.send_frame.init_connection()
 
+    def encode_frame(self, frame):
+        _, buffer = cv2.imencode('.jpg', frame)
+        encoded_frame = base64.b64encode(buffer).decode('utf-8')
+        return encoded_frame
+
+    def decode_frame(self, encoded_frame):
+        frame_bytes = base64.b64decode(encoded_frame)
+        frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+        frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+        return frame
 
     def detect_faces(self, image):
 
@@ -209,7 +221,19 @@ class FaceIdentifier():
 
                 #fullSizeBaseImage = self.receive_frame.receive_frame_from_queue()
                 #baseImage = self.receive_frame.receive_frame_from_queue()
-                baseImage = self.input_queue.get()
+                #baseImage = self.input_queue.get()
+
+                # Decode the JSON message
+                message = self.input_queue.get()
+
+                data = json.loads(message)
+        
+                # Extract frame id
+                frame_id = data['frame_id']
+
+                self.logger.info( 'Get frame {}'.format(frame_id) )
+
+                baseImage = self.decode_frame(data['image'])
 
                 if ( baseImage is None ):
                     break
@@ -441,8 +465,8 @@ class FaceIdentifier():
                 #base image and use the scaling factor to draw the rectangle
                 #at the right coordinates.
 
-                largeResult = cv2.resize(resultImage,
-                                        (OUTPUT_SIZE_WIDTH,OUTPUT_SIZE_HEIGHT))
+                # largeResult = cv2.resize(resultImage,
+                #                         (OUTPUT_SIZE_WIDTH,OUTPUT_SIZE_HEIGHT))
                 
 
 
@@ -452,8 +476,19 @@ class FaceIdentifier():
                 #    cv2.imshow(self.id, largeResult)
                 #self.video_shower.frame = largeResult
                 #self.send_frame.send_frame_to_queue(resultImage)
-                self.output_queue.put(resultImage)
+
                 
+                # Encode the image to Base64
+                encoded_image = self.encode_frame(resultImage)
+                
+                # Create the JSON object
+                json_object = json.dumps({
+                    'frame_id' : frame_id,
+                    'names': list(faceNames.values()),
+                    'image': encoded_image
+                })
+
+                self.output_queue.put(json_object)
 
                 elapsed = time.time() - dtot
                 self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')
