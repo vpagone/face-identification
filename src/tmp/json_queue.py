@@ -1,61 +1,55 @@
-import multiprocessing as mp
-import json
 import base64
-from io import BytesIO
-from PIL import Image
+import json
+from multiprocessing import Process, Queue
 
-def encode_image_to_base64(image_path):
-    with Image.open(image_path) as img:
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode("utf-8")
+def main(queue):
+    # Read the image file
+    #with open(r'C:\\Users\\utente\\Desktop\\IMG20240308160950.jpg', 'rb') as image_file:
+    with open(r'Marilyn_Monroe_0002.jpg', 'rb') as image_file:
+        image_data = image_file.read()
+    
+    # Encode the image to Base64
+    encoded_image = base64.b64encode(image_data).decode('utf-8')
+    
+    # Create the JSON object
+    json_object = json.dumps({
+        'image': encoded_image,
+        'description': 'This is an example image.'
+    })
+    
+    # Put the JSON object into the queue
+    queue.put(json_object)
+    
+    # Signal the worker to stop
+    queue.put("STOP")
 
-def create_json_with_image(image_path):
-    base64_image = encode_image_to_base64(image_path)
-    data = {
-        "name": "Alice",
-        "age": 30,
-        "city": "New York",
-        "image": base64_image
-    }
-    return json.dumps(data)
-
-def producer(queue, image_path):
-    json_data = create_json_with_image(image_path)
-    queue.put(json_data)
-    queue.put(None)  # Sentinel value to indicate end of data
-
-def decode_base64_to_image(base64_string, output_path):
-    image_data = base64.b64decode(base64_string)
-    with open(output_path, "wb") as out_file:
-        out_file.write(image_data)
-
-def process_json_with_image(json_data):
-    data = json.loads(json_data)
-    print(f"Received data: {data['name']}, {data['age']}, {data['city']}")
-    decode_base64_to_image(data['image'], "output_image.png")
-    print("Image saved as output_image.png")
-
-def consumer(queue):
+def worker(queue):
     while True:
-        json_data = queue.get()
-        if json_data is None:
+        message = queue.get()
+        if message == "STOP":
             break
-        process_json_with_image(json_data)
+        
+        # Decode the JSON message
+        data = json.loads(message)
+        
+        # Extract and decode the image
+        image_data = base64.b64decode(data['image'])
+        
+        # Save the image (for demonstration purposes)
+        with open('received_image.png', 'wb') as image_file:
+            image_file.write(image_data)
+        
+        print("Image received and saved.")
 
-def main():
-    queue = mp.Queue()
-    image_path = 'path/to/your/image.png'
-
-    # Create and start producer and consumer processes
-    producer_process = mp.Process(target=producer, args=(queue, image_path))
-    consumer_process = mp.Process(target=consumer, args=(queue,))
-
-    producer_process.start()
-    consumer_process.start()
-
-    producer_process.join()
-    consumer_process.join()
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    queue = Queue()
+    
+    # Start the worker process
+    worker_process = Process(target=worker, args=(queue,))
+    worker_process.start()
+    
+    # Run the main function
+    main(queue)
+    
+    # Wait for the worker to finish
+    worker_process.join()
