@@ -29,13 +29,13 @@ OUTPUT_SIZE_HEIGHT = 480
 
 class FaceIdentifier():
   
-    def __init__(self, id, directory, input_queue, output_queue, log_dir):
+    def __init__(self, id, directory, input_queue, output_queue_list, log_dir):
 
         super().__init__()
 
         self.id = id
         self.input_queue  = input_queue
-        self.output_queue = output_queue
+        self.output_queue_list = output_queue_list
         self.log_dir = log_dir
 
         # Init models face detection & recognition
@@ -424,34 +424,34 @@ class FaceIdentifier():
                 #(i.e. the recognition thread is finished), we print the name
                 #of the person, otherwise the message indicating we are detecting
                 #the name of the person
-                for fid in faceTrackers.keys():
+                # for fid in faceTrackers.keys():
 
-                    tracked_position = faceBoxes[fid]
+                #     tracked_position = faceBoxes[fid]
                     
-                    t_x = int(tracked_position[0])
-                    t_y = int(tracked_position[1])
-                    t_w = int(tracked_position[2])
-                    t_h = int(tracked_position[3])
+                #     t_x = int(tracked_position[0])
+                #     t_y = int(tracked_position[1])
+                #     t_w = int(tracked_position[2])
+                #     t_h = int(tracked_position[3])
 
-                    thickness = 2
-                    scale = 0.6
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    green = (0, 255, 0)
-                    orange = (0, 165, 255)
+                #     thickness = 2
+                #     scale = 0.6
+                #     font = cv2.FONT_HERSHEY_SIMPLEX
+                #     green = (0, 255, 0)
+                #     orange = (0, 165, 255)
 
-                    if fid in faceNames.keys():
-                        cv2.rectangle(resultImage, (t_x, t_y),
-                                        (t_x + t_w , t_y + t_h),
-                                        (0, 255, 0) ,thickness, cv2.LINE_AA)
-                        text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
-                        cv2.putText(resultImage, text, 
-                                        (int(t_x + t_w/2), int(t_y)), 
-                                        font,
-                                        scale, green, thickness, cv2.LINE_AA)
-                    else:
-                        cv2.rectangle(resultImage, (t_x, t_y),
-                                        (t_x + t_w , t_y + t_h),
-                                        orange, thickness, cv2.LINE_AA)
+                #     if fid in faceNames.keys():
+                #         cv2.rectangle(resultImage, (t_x, t_y),
+                #                         (t_x + t_w , t_y + t_h),
+                #                         (0, 255, 0) ,thickness, cv2.LINE_AA)
+                #         text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
+                #         cv2.putText(resultImage, text, 
+                #                         (int(t_x + t_w/2), int(t_y)), 
+                #                         font,
+                #                         scale, green, thickness, cv2.LINE_AA)
+                #     else:
+                #         cv2.rectangle(resultImage, (t_x, t_y),
+                #                         (t_x + t_w , t_y + t_h),
+                #                         orange, thickness, cv2.LINE_AA)
                         #cv2.putText(resultImage, "???" , 
                         #                (int(t_x + t_w/2), int(t_y)), 
                         #                font,
@@ -484,11 +484,14 @@ class FaceIdentifier():
                 # Create the JSON object
                 json_object = json.dumps({
                     'frame_id' : frame_id,
-                    'names': list(faceNames.values()),
-                    'image': encoded_image
+                    'names'  : faceNames,
+                    'boxes'  : faceBoxes,
+                    'scores' : faceScores,
+                    'image'  : encoded_image
                 })
 
-                self.output_queue.put(json_object)
+                for output_queue in self.output_queue_list:
+                    output_queue.put(json_object)
 
                 elapsed = time.time() - dtot
                 self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')

@@ -15,13 +15,18 @@ import errno
 
 def start_process(id, source, data_dir, window_frame, log_dir, out_dir):
 
-    input_frame_queue       = Queue(maxsize=100)
-    procecessed_frame_queue = Queue(maxsize=100)
+    input_frame_queue        = Queue(maxsize=100)
+    procecessed_frame_queue1 = Queue(maxsize=100)
+    procecessed_frame_queue2 = Queue(maxsize=100)
+
+    processed_frames_queue_list = []
+    processed_frames_queue_list.append(procecessed_frame_queue1)
+    processed_frames_queue_list.append(procecessed_frame_queue2)
  
     fp = FrameProducer(id, source, input_frame_queue, log_dir)
-    fi = FaceIdentifier(id, data_dir, input_frame_queue, procecessed_frame_queue, log_dir)
-    fs = VideoShow(id, procecessed_frame_queue, log_dir)
-    fr = VideoRecorder(id, procecessed_frame_queue, window_frame, log_dir, out_dir)
+    fi = FaceIdentifier(id, data_dir, input_frame_queue, processed_frames_queue_list, log_dir)
+    fs = VideoShow(id, procecessed_frame_queue1, log_dir)
+    fr = VideoRecorder(id, procecessed_frame_queue2, window_frame, log_dir, out_dir)
 
     # start processes
     fp_proc = Process(target = fp.produce)

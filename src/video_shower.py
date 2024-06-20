@@ -46,6 +46,10 @@ class VideoShow:
 
             # Decode the JSON message
             message = self.queue.get()
+
+            if ( message is None ):
+                break
+
             data = json.loads(message)
     
             # Extract frame id
@@ -54,16 +58,56 @@ class VideoShow:
             # Extract and decode the image
             frame = self.decode_frame(data['image'])
 
-            if ( frame is None ):
-                break
+            # Extract names
+            faceNames = data['names']
 
+            faceBoxes = data['boxes']
+
+            faceScores = data['scores']
+
+
+
+            self.logger.info('display frame: {}'.format(frame_id))
+            self.logger.info('names: {}'.format(faceNames))
+            self.logger.info('boxes: {}'.format(faceBoxes))            
+            self.logger.info('scores: {}'.format(faceScores))
+
+
+
+            for fid in faceBoxes.keys():
+
+                    tracked_position = faceBoxes[fid]
+                    
+                    t_x = int(tracked_position[0])
+                    t_y = int(tracked_position[1])
+                    t_w = int(tracked_position[2])
+                    t_h = int(tracked_position[3])
+
+                    thickness = 2
+                    scale = 0.6
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    green = (0, 255, 0)
+                    orange = (0, 165, 255)
+
+                    if fid in faceNames.keys():
+                        cv2.rectangle(frame, (t_x, t_y),
+                                        (t_x + t_w , t_y + t_h),
+                                        (0, 255, 0) ,thickness, cv2.LINE_AA)
+                        text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
+                        cv2.putText(frame, text, 
+                                        (int(t_x + t_w/2), int(t_y)), 
+                                        font,
+                                        scale, green, thickness, cv2.LINE_AA)
+                    else:
+                        cv2.rectangle(frame, (t_x, t_y),
+                                        (t_x + t_w , t_y + t_h),
+                                        orange, thickness, cv2.LINE_AA)
+                        
             #print(f'{self.id} before imshow')
             cv2.imshow(self.id, frame)
             #print(f'{self.id} after imshow')
             if cv2.waitKey(1) == ord("q"):
                 self.stopped = True
-
-            self.logger.info('display frame: {}'.format(frame_id))
 
         self.logger.info('Finished')
 
