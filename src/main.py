@@ -13,7 +13,7 @@ from config_manager import load_yaml_config
 import logging
 import errno
 
-def start_process(id, source, data_dir, window_frame, log_dir, out_dir):
+def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir):
 
     input_frame_queue        = Queue(maxsize=100)
     procecessed_frame_queue1 = Queue(maxsize=100)
@@ -26,7 +26,7 @@ def start_process(id, source, data_dir, window_frame, log_dir, out_dir):
     fp = FrameProducer(id, source, input_frame_queue, log_dir)
     fi = FaceIdentifier(id, data_dir, input_frame_queue, processed_frames_queue_list, log_dir)
     fs = VideoShow(id, procecessed_frame_queue1, log_dir)
-    fr = VideoRecorder(id, procecessed_frame_queue2, window_frame, log_dir, out_dir)
+    fr = VideoRecorder(id, procecessed_frame_queue2, fps, fragment_duration, log_dir, out_dir)
 
     # start processes
     fp_proc = Process(target = fp.produce)
@@ -72,15 +72,15 @@ def run_config(config):
             print(f"  Video File Name: {video_file['video_name']},\n \
                       File: {video_file['location']},\n \
                       Enabled: {video_file['enabled']},\n \
-                      Recording duration: {video_file['recording_duration']}, \n \
+                      Fragment duration: {video_file['fragment_duration']}, \n \
                       fps: {video_file['fps']}")
             if (video_file['enabled']):
                 ldir=create_log_dir(log_dir=log_dir,
                                        id=video_file['video_name'])
-                window_frame=video_file['fps']*video_file['recording_duration']
                 fp,fi,fs,fr = start_process(id=video_file['video_name'], 
                                             source=video_file['location'],
-                                            window_frame=window_frame, 
+                                            fps = video_file['fps'],
+                                            fragment_duration = video_file['fragment_duration'], 
                                             data_dir=data_dir,
                                             log_dir=ldir,
                                             out_dir=out_dir)
