@@ -13,12 +13,14 @@ class VideoShow:
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, queue, log_dir):
+    def __init__(self, id, queue, fps, log_dir):
 
         self.id = id
         self.queue = queue
-        self.stopped = False
+        self.fps = fps
         self.log_dir = log_dir
+
+        self.stopped = False
 
         # self.receive_frame = ReceiveFrame(queue_name)
         # self.receive_frame.init_connection()
@@ -38,6 +40,8 @@ class VideoShow:
                             level=logging.INFO)
 
         self.logger.info('Started')
+
+        raw_frame_window = self.id + '_raw'
 
         while not self.stopped:
 
@@ -72,7 +76,7 @@ class VideoShow:
             self.logger.info('boxes: {}'.format(faceBoxes))            
             self.logger.info('scores: {}'.format(faceScores))
 
-
+            cv2.imshow(raw_frame_window, cv2.resize( frame, ( 320, 240) ))
 
             for fid in faceBoxes.keys():
 
@@ -106,7 +110,7 @@ class VideoShow:
             #print(f'{self.id} before imshow')
             cv2.imshow(self.id, frame)
             #print(f'{self.id} after imshow')
-            if cv2.waitKey(1) == ord("q"):
+            if cv2.waitKey(int(1000/self.fps)) == ord("q"):
                 self.stopped = True
 
         self.logger.info('Finished')

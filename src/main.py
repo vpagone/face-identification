@@ -12,6 +12,7 @@ from video_recorder import VideoRecorder
 from config_manager import load_yaml_config
 import logging
 import errno
+import shutil
 
 def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir):
 
@@ -25,7 +26,7 @@ def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir
  
     fp = FrameProducer(id, source, input_frame_queue, log_dir)
     fi = FaceIdentifier(id, data_dir, input_frame_queue, processed_frames_queue_list, log_dir)
-    fs = VideoShow(id, procecessed_frame_queue1, log_dir)
+    fs = VideoShow(id, procecessed_frame_queue1, fps, log_dir)
     fr = VideoRecorder(id, procecessed_frame_queue2, fps, fragment_duration, log_dir, out_dir)
 
     # start processes
@@ -43,18 +44,36 @@ def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir
 
     return fp_proc, fi_proc, fs_proc, fr_proc
 
-def create_log_dir(log_dir, id):
+def create_log_out_dir(log_dir, out_dir, id):
     try:
-        path=os.path.join(log_dir, id)
-        os.makedirs(path, exist_ok=True)  # Python>3.2
-        return path
+        log_path=os.path.join(log_dir, id)
+        if os.path.exists(log_path):
+            shutil.rmtree(log_path)
+        os.makedirs(log_path)
+        shutil.rmtree(log_path)
+        os.makedirs(log_path, exist_ok=True)  # Python>3.2
     except TypeError:
         try:
-            os.makedirs(path)
+            os.makedirs(log_path)
         except OSError as exc: # Python >2.5
-            if exc.errno == errno.EEXIST and os.path.isdir(path):
+            if exc.errno == errno.EEXIST and os.path.isdir(log_path):
                 pass
             else: raise
+
+    try:
+        out_path=os.path.join(out_dir, id)        
+        if os.path.exists(out_path):
+            shutil.rmtree(out_path)
+        os.makedirs(out_path, exist_ok=True)  # Python>3.2
+    except TypeError:
+        try:
+            os.makedirs(out_path)
+        except OSError as exc: # Python >2.5
+            if exc.errno == errno.EEXIST and os.path.isdir(out_path):
+                pass
+            else: raise
+
+    return log_path, out_path
 
 def run_config(config):
 
@@ -63,6 +82,12 @@ def run_config(config):
     data_dir = general[0]['data_dir']
     log_dir  = general[1]['log_dir']
     out_dir  = general[2]['output_dir']
+
+    #create log dir and output dir
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
 
     process_list = []
     local_sources = config.get('local_sources', [])
@@ -75,7 +100,8 @@ def run_config(config):
                       Fragment duration: {video_file['fragment_duration']}, \n \
                       fps: {video_file['fps']}")
             if (video_file['enabled']):
-                ldir=create_log_dir(log_dir=log_dir,
+                ldir,odir=create_log_out_dir(log_dir=log_dir,
+                                        out_dir=out_dir,
                                        id=video_file['video_name'])
                 fp,fi,fs,fr = start_process(id=video_file['video_name'], 
                                             source=video_file['location'],
@@ -83,7 +109,7 @@ def run_config(config):
                                             fragment_duration = video_file['fragment_duration'], 
                                             data_dir=data_dir,
                                             log_dir=ldir,
-                                            out_dir=out_dir)
+                                            out_dir=odir)
                 process_list.append(fp)
                 process_list.append(fi)
                 process_list.append(fs)
