@@ -15,7 +15,6 @@ from pathlib import Path
 import logging
 import base64
 import json
-import hashlib
 
 from encoding_db import encode_known_faces, load_encoded_known_faces
 from receive_frame_from_queue import ReceiveFrame
@@ -28,15 +27,15 @@ COSINE_THRESHOLD = 0.45
 OUTPUT_SIZE_WIDTH = 640
 OUTPUT_SIZE_HEIGHT = 480
 
-class FaceIdentifier():
+class FaceDetector():
   
-    def __init__(self, id, directory, input_queue, output_queue_list, log_dir):
+    def __init__(self, id, directory, input_queue, output_queue, log_dir):
 
         super().__init__()
 
         self.id = id
         self.input_queue  = input_queue
-        self.output_queue_list = output_queue_list
+        self.output_queue = output_queue
         self.log_dir = log_dir
 
         # Init models face detection & recognition
@@ -48,10 +47,6 @@ class FaceIdentifier():
 
         weights = os.path.join(directory, 'models', 
                         'face_recognizer_fast.onnx')
-
-        self.face_recognizer = cv2.FaceRecognizerSF_create(weights, "")
-
-        self.names, self.encodings = load_encoded_known_faces(directory)
 
         # self.receive_frame = ReceiveFrame(id + '_queue')
         # self.receive_frame.init_connection()
@@ -98,83 +93,6 @@ class FaceIdentifier():
                 return None
 
 
-    # #We are not doing really face recognition
-    # def doRecognizePerson(faceNames, fid):
-    #     time.sleep(2)
-    #     faceNames[ fid ] = "Person " + str(fid)
-
-
-    def match(self, feature1):
-
-            max_score = 0.0
-            sim_user_id = ""
-            for user_id, feature2 in zip(self.names, self.encodings):
-                score = self.face_recognizer.match(
-                    feature1, feature2, cv2.FaceRecognizerSF_FR_COSINE)
-                if score >= max_score:
-                    max_score = score
-                    sim_user_id = user_id
-
-            self.logger.info(f'match: feature1 = {feature1}\nscore = {max_score}')
-
-            if max_score < COSINE_THRESHOLD:
-                #print(f'{time.time()} match: low score = {max_score}')
-                return False, ("", 0.0)
-                        
-            return True, (sim_user_id, max_score)
-
-    def identify_face(self, image, face, faceID, faceNames, faceScores):
-    
-        #print(f'{time.time()} trying to identify fid: {faceID}')
-
-        # channels = 1 if len(image.shape) == 2 else image.shape[2]
-        # if channels == 1:
-        #     image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-        # if channels == 4:
-        #     image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
-
-        # if image.shape[0] > 1000:
-        #     image = cv2.resize(image, (0, 0),
-        #                        fx=500 / image.shape[0], fy=500 / image.shape[0])
-
-        self.logger.info(f' faceID = {faceID} face = {face}')
-
-        print(image.shape)
-        readable_hash = hashlib.md5(image).hexdigest()
-        self.logger.info(f' readable_hash = {readable_hash}')
-
-        try:
-
-            self.logger.info(f' faceID = {faceID} face = {face}')
-
-            dts = time.time()
-
-            #faces = faces if faces is not None else []
-            features = []
-
-            aligned_face = self.face_recognizer.alignCrop(image, face)
-
-            self.logger.info(f' aligned face = {aligned_face}')
-
-            feat = self.face_recognizer.feature(aligned_face)
-
-            rts = time.time()
-
-            result, (sim_user_id, max_score) = self.match(feat)
-
-            if result:
-                faceNames[ faceID ]  = sim_user_id
-                faceScores[ faceID ] = max_score         
-
-            rts = time.time()
-
-            self.logger.info(f' time identification  = {time.time() - rts}')
-
-            return result  
-        except Exception as e:
-            self.logger.error(e)
-            return None
-
     def detectAndTrackMultipleFaces(self):
 
         self.logger = logging.getLogger(__name__)
@@ -185,59 +103,20 @@ class FaceIdentifier():
 
         self.logger.info('Started')
 
-        #print(f'{self.id} before capture')
-
-        #capture = cv2.VideoCapture(self.source)
-
-
-
-#        self.video_shower.start()
-
- 
-
-        #fps = capture.get(cv2.CAP_PROP_FPS)
-        #print("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
-
-        #Create two opencv named windows
-        #cv2.namedWindow("base-image", cv2.WINDOW_AUTOSIZE)
-        #cv2.namedWindow(self.id, cv2.WINDOW_AUTOSIZE)
-
-
-
-
-
-        #Position the windows next to eachother
-        #cv2.moveWindow("base-image",0,100)
-        #cv2.moveWindow("result-image",400,100)
-
-        #Start the window thread for the two windows we are using
-        #cv2.startWindowThread()
-
-        #The color of the rectangle we draw around the face
-        rectangleColor = (0,165,255)
-
         #variables holding the current frame number and the current faceid
-        #frameCounter = 0
+        frameCounter = 0
         currentFaceID = 1
 
         #Variables holding the correlation trackers and the name per faceid
         faceTrackers = {}
-        faceNames    = {}
         faceBoxes    = {}
-        faceScores   = {}
+        facesDetect  = {}
 
         try:
 
             while True:
 
                 dtot = time.time()
-
-                #Retrieve the latest image from the webcam
-                #rc,fullSizeBaseImage = capture.read()
-
-                #fullSizeBaseImage = self.receive_frame.receive_frame_from_queue()
-                #baseImage = self.receive_frame.receive_frame_from_queue()
-                #baseImage = self.input_queue.get()
 
                 # Decode the JSON message
                 message = self.input_queue.get()
@@ -246,7 +125,7 @@ class FaceIdentifier():
                     break
 
                 data = json.loads(message)
-        
+
                 # Extract frame id
                 frame_id = data['frame_id']
 
@@ -254,22 +133,6 @@ class FaceIdentifier():
 
                 baseImage = self.decode_frame(data['image'])
 
-                #Resize the image to 320x240
-                #baseImage = cv2.resize( fullSizeBaseImage, ( 320, 240))
-                #baseImage = cv2.resize( fullSizeBaseImage, ( 640, 480))
-
-                #baseImage = fullSizeBaseImage.copy()
-
-                #Check if a key was pressed and if it was Q, then break
-                #from the infinite loop
-                #pressedKey = cv2.waitKey(2)
-                #if pressedKey == ord('Q'):
-                #    break
-
-
-                #Result image is the image we will show the user, which is a
-                #combination of the original image from the webcam and the
-                #overlayed rectangle for the largest face
                 resultImage = baseImage.copy()
 
                 #STEPS:
@@ -285,7 +148,7 @@ class FaceIdentifier():
 
 
                 #Increase the framecounter
-                #frameCounter += 1 
+                frameCounter += 1 
 
 
 
@@ -312,13 +175,10 @@ class FaceIdentifier():
                     #print(f'{self.id} Removing fid " + {str(fid)} from list of trackers')
                     faceTrackers.pop( fid , None )
                     faceBoxes.pop(fid, None)
-                    faceNames.pop(fid, None)
-                    faceScores.pop(fid, None)
-
 
                 #Every 10 frames, we will have to determine which faces
                 #are present in the frame
-                if (frame_id % 10) == 0:
+                if (frameCounter % 10) == 0:
 
 
                     #For the face detection, we need to make use of a gray
@@ -405,113 +265,42 @@ class FaceIdentifier():
                             #                                     x+w+10,
                             #                                     y+h+20))
 
+                            # self.logger.info(f'face:\n {face}')
+                            # self.logger.info(f'face.tolist:\n {face.tolist()}')
+
                             faceTrackers[ currentFaceID ] = tracker
-                            faceBoxes[ currentFaceID ] = box
-
-                            #Start a new thread that is used to simulate 
-                            #face recognition. This is not yet implemented in this
-                            #version :)
-                            #t = threading.Thread( target = identify_face,
-                            #                        args=(baseImage, face, face_recognizer, currentFaceID, faceNames, faceScores))
-                            #t.start()
-
-                            self.logger.info(f'face:\n {face}')
-
-                            self.identify_face(baseImage, face, currentFaceID, faceNames, faceScores)
+                            faceBoxes[ currentFaceID ]    = box
+                            facesDetect[ currentFaceID ]  = face.tolist()
 
                             #Increase the currentFaceID counter
                             currentFaceID += 1
                         else:
                             if matchedFid in unusedTrackers:
                                 unusedTrackers.remove(matchedFid)
-                            if not (matchedFid in faceNames) :
-                            #     t = threading.Thread( target = identify_face,
-                            #                        args=(baseImage, face, face_recognizer, matchedFid, faceNames, faceScores))
-                            #     t.start()
-                                self.identify_face(baseImage, face, matchedFid, faceNames, faceScores)
+                            facesDetect[ matchedFid ]  = face.tolist()
+                          
 
                     for fid in unusedTrackers:
                         #print(f'{self.id} Removing fid " + {str(fid)} from list of trackers')
                         faceTrackers.pop( fid , None )
                         faceBoxes.pop(fid, None)
-                        faceNames.pop(fid, None)
-                        faceScores.pop(fid, None)
-
-                #Now loop over all the trackers we have and draw the rectangle
-                #around the detected faces. If we 'know' the name for this person
-                #(i.e. the recognition thread is finished), we print the name
-                #of the person, otherwise the message indicating we are detecting
-                #the name of the person
-                # for fid in faceTrackers.keys():
-
-                #     tracked_position = faceBoxes[fid]
-                    
-                #     t_x = int(tracked_position[0])
-                #     t_y = int(tracked_position[1])
-                #     t_w = int(tracked_position[2])
-                #     t_h = int(tracked_position[3])
-
-                #     thickness = 2
-                #     scale = 0.6
-                #     font = cv2.FONT_HERSHEY_SIMPLEX
-                #     green = (0, 255, 0)
-                #     orange = (0, 165, 255)
-
-                #     if fid in faceNames.keys():
-                #         cv2.rectangle(resultImage, (t_x, t_y),
-                #                         (t_x + t_w , t_y + t_h),
-                #                         (0, 255, 0) ,thickness, cv2.LINE_AA)
-                #         text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
-                #         cv2.putText(resultImage, text, 
-                #                         (int(t_x + t_w/2), int(t_y)), 
-                #                         font,
-                #                         scale, green, thickness, cv2.LINE_AA)
-                #     else:
-                #         cv2.rectangle(resultImage, (t_x, t_y),
-                #                         (t_x + t_w , t_y + t_h),
-                #                         orange, thickness, cv2.LINE_AA)
-                        #cv2.putText(resultImage, "???" , 
-                        #                (int(t_x + t_w/2), int(t_y)), 
-                        #                font,
-                        #                scale, (0, 165, 255), thickness, cv2.LINE_AA)
-
-                #Since we want to show something larger on the screen than the
-                #original 320x240, we resize the image again
-                #
-                #Note that it would also be possible to keep the large version
-                #of the baseimage and make the result image a copy of this large
-                #base image and use the scaling factor to draw the rectangle
-                #at the right coordinates.
-
-                # largeResult = cv2.resize(resultImage,
-                #                         (OUTPUT_SIZE_WIDTH,OUTPUT_SIZE_HEIGHT))
-                
-
-
-                #Finally, we want to show the images on the screen
-                #cv2.imshow("base-image", baseImage)
-                #if (self.id == 'fi-01'):
-                #    cv2.imshow(self.id, largeResult)
-                #self.video_shower.frame = largeResult
-                #self.send_frame.send_frame_to_queue(resultImage)
 
                 
                 # Encode the image to Base64
                 encoded_image = self.encode_frame(resultImage)
-
-                self.logger.info('boxes: {}'.format(faceBoxes))  
                 
                 # Create the JSON object
-                json_object = json.dumps({
-                    'frame_id' : frame_id,
-                    'names'  : faceNames,
-                    'boxes'  : faceBoxes,
-                    'scores' : faceScores,
-                    'image'  : encoded_image
-                })
+                # json_object = json.dumps({
+                #     'frame_id'     : frame_id,
+                #     'boxes'        : faceBoxes,
+                #     'facesDetect'  : facesDetect,
+                #     'image'        : encoded_image
+                # })
+                data['facesDetect'] = facesDetect
+                data['boxes'] = faceBoxes
+                json_object = json.dumps(data)
 
-                for output_queue in self.output_queue_list:
-                    output_queue.put(json_object)
+                self.output_queue.put(json_object)
 
                 elapsed = time.time() - dtot
                 self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')

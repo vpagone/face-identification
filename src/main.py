@@ -9,6 +9,8 @@ import argparse
 from frame_producer import FrameProducer
 from video_shower import VideoShow
 from video_recorder import VideoRecorder
+from detector import FaceDetector
+from recognizer import FaceRecognizer
 from config_manager import load_yaml_config
 import logging
 import errno
@@ -19,30 +21,35 @@ def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir
     input_frame_queue        = Queue(maxsize=100)
     procecessed_frame_queue1 = Queue(maxsize=100)
     procecessed_frame_queue2 = Queue(maxsize=100)
+    procecessed_frame_queue3 = Queue(maxsize=100)
 
     processed_frames_queue_list = []
     processed_frames_queue_list.append(procecessed_frame_queue1)
     processed_frames_queue_list.append(procecessed_frame_queue2)
  
     fp = FrameProducer(id, source, input_frame_queue, log_dir)
-    fi = FaceIdentifier(id, data_dir, input_frame_queue, processed_frames_queue_list, log_dir)
-    fs = VideoShow(id, procecessed_frame_queue1, fps, log_dir)
-    fr = VideoRecorder(id, procecessed_frame_queue2, fps, fragment_duration, log_dir, out_dir)
+    fd = FaceDetector(id, data_dir, input_frame_queue, procecessed_frame_queue3, log_dir)
+    fr = FaceRecognizer(id, data_dir, procecessed_frame_queue3, processed_frames_queue_list, log_dir)
+    vs = VideoShow(id, procecessed_frame_queue1, fps, log_dir)
+    vr = VideoRecorder(id, procecessed_frame_queue2, fps, fragment_duration, log_dir, out_dir)
 
     # start processes
     fp_proc = Process(target = fp.produce)
     fp_proc.start()
 
-    fi_proc = Process(target = fi.detectAndTrackMultipleFaces)
-    fi_proc.start()
+    fd_proc = Process(target = fd.detectAndTrackMultipleFaces)
+    fd_proc.start()
 
-    fs_proc = Process(target = fs.show)
-    fs_proc.start()
-
-    fr_proc = Process(target = fr.record)
+    fr_proc = Process(target = fr.recognizeMultipleFaces)
     fr_proc.start()
 
-    return fp_proc, fi_proc, fs_proc, fr_proc
+    vs_proc = Process(target = vs.show)
+    vs_proc.start()
+
+    vr_proc = Process(target = vr.record)
+    vr_proc.start()
+
+    return fp_proc, fd_proc, fr_proc, vs_proc, vr_proc
 
 def create_log_out_dir(log_dir, out_dir, id):
     try:
@@ -103,7 +110,7 @@ def run_config(config):
                 ldir,odir=create_log_out_dir(log_dir=log_dir,
                                         out_dir=out_dir,
                                        id=video_file['video_name'])
-                fp,fi,fs,fr = start_process(id=video_file['video_name'], 
+                fp,fd,fr,vs,vr = start_process(id=video_file['video_name'], 
                                             source=video_file['location'],
                                             fps = video_file['fps'],
                                             fragment_duration = video_file['fragment_duration'], 
@@ -111,9 +118,10 @@ def run_config(config):
                                             log_dir=ldir,
                                             out_dir=odir)
                 process_list.append(fp)
-                process_list.append(fi)
-                process_list.append(fs)
+                process_list.append(fd)
                 process_list.append(fr)
+                process_list.append(vs)
+                process_list.append(vr)
 
     for process in process_list:
         process.join()

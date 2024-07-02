@@ -69,8 +69,6 @@ class VideoShow:
 
             faceScores = data['scores']
 
-
-
             self.logger.info('display frame: {}'.format(frame_id))
             self.logger.info('names: {}'.format(faceNames))
             self.logger.info('boxes: {}'.format(faceBoxes))            
