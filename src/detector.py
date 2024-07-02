@@ -85,11 +85,11 @@ class FaceDetector():
 
                 faces = faces if faces is not None else []
         
-                self.logger.info(f' time detection  = {time.time() - dts}')
+                self.logger.info("time detection = {:.3f}".format(time.time() - dts))
 
                 return faces
             except Exception as e:
-                self.loger.error(e)
+                self.logger.error(e)
                 return None
 
 
@@ -285,10 +285,7 @@ class FaceDetector():
                         faceTrackers.pop( fid , None )
                         faceBoxes.pop(fid, None)
 
-                
-                # Encode the image to Base64
-                encoded_image = self.encode_frame(resultImage)
-                
+                                
                 # Create the JSON object
                 # json_object = json.dumps({
                 #     'frame_id'     : frame_id,
@@ -303,7 +300,8 @@ class FaceDetector():
                 self.output_queue.put(json_object)
 
                 elapsed = time.time() - dtot
-                self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')
+                #self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')
+                self.logger.info("time total = {:.3f} estimated fps: {:.3f}".format(elapsed, 1/elapsed))
 
 
         #To ensure we can also deal with the user pressing Ctrl-C in the console

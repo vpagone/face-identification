@@ -134,7 +134,7 @@ class FaceRecognizer():
 
             rts = time.time()
 
-            self.logger.info(f' time identification  = {time.time() - rts}')
+            self.logger.info("time identification = {:.3f}".format(time.time() - rts))
 
             return result  
         except Exception as e:
@@ -158,8 +158,6 @@ class FaceRecognizer():
         try:
 
             while True:
-
-
 
                 dtot = time.time()
 
@@ -187,8 +185,8 @@ class FaceRecognizer():
                 facesDetect = data['facesDetect']
 
                 self.logger.info('display frame: {}'.format(frame_id))
-                self.logger.info('detect: {}'.format(facesDetect))
-                self.logger.info('boxes: {}'.format(faceBoxes))            
+#                self.logger.info('detect: {}'.format(facesDetect))
+#                self.logger.info('boxes: {}'.format(faceBoxes))            
 
                 if ( frame_id % 10 == 0):
                     for faceId in faceBoxes.keys():
@@ -197,19 +195,23 @@ class FaceRecognizer():
                 encoded_image = self.encode_frame(baseImage)
                 
                 # Create the JSON object
-                json_object = json.dumps({
-                    'frame_id' : frame_id,
-                    'names'  : faceNames,
-                    'boxes'  : faceBoxes,
-                    'scores' : faceScores,
-                    'image'  : encoded_image
-                })
+                # json_object = json.dumps({
+                #     'frame_id' : frame_id,
+                #     'names'  : faceNames,
+                #     'boxes'  : faceBoxes,
+                #     'scores' : faceScores,
+                #     'image'  : encoded_image
+                # })
+                data['scores'] = faceScores
+                data['names'] = faceNames
+                json_object = json.dumps(data)
 
                 for output_queue in self.output_queue_list:
                     output_queue.put(json_object)
 
                 elapsed = time.time() - dtot
-                self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')
+                self.logger.info("time total = {:.3f} estimated fps: {:.3f}".format(elapsed, 1/elapsed))
+
 
 
         #To ensure we can also deal with the user pressing Ctrl-C in the console
