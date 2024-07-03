@@ -43,6 +43,15 @@ class VideoShow:
 
         raw_frame_window = self.id + '_raw'
 
+        setFaceNames    = {}
+        setFaceScores   = {}
+
+        thickness = 2
+        scale = 0.6
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        green = (0, 255, 0)
+        orange = (0, 165, 255)
+
         while not self.stopped:
 
             #frame = self.receive_frame.receive_frame_from_queue()
@@ -62,40 +71,39 @@ class VideoShow:
             # Extract and decode the image
             frame = self.decode_frame(data['image'])
 
-            # Extract names
-            faceNames = data['names']
+            faceBoxesByFrame  = data['boxes']
 
-            faceBoxes = data['boxes']
+            faceNamesByFrame  = data['names']
+            faceScoresByFrame = data['scores']
 
-            faceScores = data['scores']
+            for id in faceNamesByFrame.keys():
+                if ( not faceNamesByFrame[id] in setFaceNames ):
+                    setFaceNames[id] = faceNamesByFrame[id]
+            for id in faceScoresByFrame.keys():
+                if ( not faceScoresByFrame[id] in faceScoresByFrame ):
+                    setFaceScores[id] = faceScoresByFrame[id]
 
             self.logger.info('display frame: {}'.format(frame_id))
-            self.logger.info('names: {}'.format(faceNames))
-            self.logger.info('boxes: {}'.format(faceBoxes))            
-            self.logger.info('scores: {}'.format(faceScores))
+            self.logger.info('names: {}'.format(faceNamesByFrame))
+            self.logger.info('boxes: {}'.format(faceBoxesByFrame))            
+            self.logger.info('scores: {}'.format(faceScoresByFrame))
 
             cv2.imshow(raw_frame_window, cv2.resize( frame, ( 320, 240) ))
 
-            for fid in faceBoxes.keys():
+            for fid in faceBoxesByFrame.keys():
 
-                    tracked_position = faceBoxes[fid]
+                    tracked_position = faceBoxesByFrame[fid]
                     
                     t_x = int(tracked_position[0])
                     t_y = int(tracked_position[1])
                     t_w = int(tracked_position[2])
                     t_h = int(tracked_position[3])
 
-                    thickness = 2
-                    scale = 0.6
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    green = (0, 255, 0)
-                    orange = (0, 165, 255)
-
-                    if fid in faceNames.keys():
+                    if fid in setFaceNames.keys():
                         cv2.rectangle(frame, (t_x, t_y),
                                         (t_x + t_w , t_y + t_h),
                                         (0, 255, 0) ,thickness, cv2.LINE_AA)
-                        text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
+                        text = "{0} ({1:.2f})".format(setFaceNames[fid], setFaceScores[fid])
                         cv2.putText(frame, text, 
                                         (int(t_x + t_w/2), int(t_y)), 
                                         font,

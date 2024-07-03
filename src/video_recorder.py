@@ -59,7 +59,7 @@ class VideoRecorder:
 
             if (frame_counter == 0):
                 start_frame_id = frame_id
-                tmp_file_name=path=os.path.join('/tmp', str(frame_id) + '.avi')
+                tmp_file_name=path=os.path.join('/tmp', self.id + '-' + str(frame_id) + '.avi')
                 video_out = cv2.VideoWriter(tmp_file_name,cv2.VideoWriter_fourcc('M','J','P','G'), self.fps, (640,480))
                 setFaceNames = set()
 
@@ -140,16 +140,12 @@ class VideoRecorder:
 
                     os.remove(tmp_file_name)
 
-
-
         video_out.release()
         file_name=path=os.path.join(self.out_dir, str(start_frame_id) + '.avi')
         # mv tmp_file_name to out_dir
         os.rename(tmp_file_name, file_name)
 
         self.logger.info('Finished')
-
-
 
     def stop(self):
         self.stopped = True

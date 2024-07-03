@@ -3,30 +3,22 @@
 #Import the OpenCV and dlib libraries
 from threading import Thread
 import os
-import sys
-import glob
 import time
-import math
 import cv2
 import numpy as np
 from tqdm import tqdm
-import pickle
 from pathlib import Path
 import logging
 import base64
 import json
-import hashlib
 
 from encoding_db import encode_known_faces, load_encoded_known_faces
 from receive_frame_from_queue import ReceiveFrame
 from send_frame_to_queue import SendFrameToQueue
+from constants import FRAME_INTERVAL
 
 #COSINE_THRESHOLD = 0.5
 COSINE_THRESHOLD = 0.45
-
-#The deisred output width and height
-OUTPUT_SIZE_WIDTH = 640
-OUTPUT_SIZE_HEIGHT = 480
 
 class FaceRecognizer():
   
@@ -151,15 +143,14 @@ class FaceRecognizer():
 
         self.logger.info('Started')
 
-        #Variables holding the correlation trackers and the name per faceid
-        faceNames    = {}
-        faceScores   = {}
-
         try:
 
             while True:
 
                 dtot = time.time()
+
+                faceNames    = {}
+                faceScores   = {}
 
                 # Decode the JSON message
                 message = self.input_queue.get()

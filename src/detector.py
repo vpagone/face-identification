@@ -3,14 +3,9 @@
 #Import the OpenCV and dlib libraries
 from threading import Thread
 import os
-import sys
-import glob
 import time
-import math
 import cv2
 import numpy as np
-from tqdm import tqdm
-import pickle
 from pathlib import Path
 import logging
 import base64
@@ -19,13 +14,9 @@ import json
 from encoding_db import encode_known_faces, load_encoded_known_faces
 from receive_frame_from_queue import ReceiveFrame
 from send_frame_to_queue import SendFrameToQueue
+from constants import FRAME_INTERVAL
 
-#COSINE_THRESHOLD = 0.5
 COSINE_THRESHOLD = 0.45
-
-#The deisred output width and height
-OUTPUT_SIZE_WIDTH = 640
-OUTPUT_SIZE_HEIGHT = 480
 
 class FaceDetector():
   
@@ -104,7 +95,6 @@ class FaceDetector():
         self.logger.info('Started')
 
         #variables holding the current frame number and the current faceid
-        frameCounter = 0
         currentFaceID = 1
 
         #Variables holding the correlation trackers and the name per faceid
@@ -146,12 +136,6 @@ class FaceDetector():
                 #       + If centerpoint is NOT in existing tracked box, then
                 #         we add a new tracker with a new face-id
 
-
-                #Increase the framecounter
-                frameCounter += 1 
-
-
-
                 #Update all the trackers and remove the ones for which the update
                 #indicated the quality was not good enough
                 fidsToDelete = []
@@ -178,8 +162,7 @@ class FaceDetector():
 
                 #Every 10 frames, we will have to determine which faces
                 #are present in the frame
-                if (frameCounter % 10) == 0:
-
+                if (frame_id % FRAME_INTERVAL) == 0:
 
                     #For the face detection, we need to make use of a gray
                     #colored image so we will convert the baseImage to a
