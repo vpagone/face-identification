@@ -1,34 +1,35 @@
 import yaml
-
-def load_yaml_config(file_path):
-    with open(file_path, 'r') as file:
-        config = yaml.safe_load(file)
-        return config
-    
 import os
 import cv2
 from core import FaceIdentifier
 from threading import Thread, Lock
 from multiprocessing import Process
 from multiprocessing import Queue
-import time
-import argparse
 from frame_producer import FrameProducer
-from video_shower import VideoShow
+from video_shower_new import start_video_player
 from video_recorder import VideoRecorder
 from detector import FaceDetector
 from recognizer import FaceRecognizer
-from config_manager import load_yaml_config
 import logging
 import errno
 import shutil
 
+input_frame_queue        = Queue(maxsize=100)
+procecessed_frame_queue1 = Queue(maxsize=100)
+procecessed_frame_queue2 = Queue(maxsize=100)
+procecessed_frame_queue3 = Queue(maxsize=100)
+
+def load_yaml_config(file_path):
+    with open(file_path, 'r') as file:
+        config = yaml.safe_load(file)
+        return config
+
 def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir):
 
-    input_frame_queue        = Queue(maxsize=100)
-    procecessed_frame_queue1 = Queue(maxsize=100)
-    procecessed_frame_queue2 = Queue(maxsize=100)
-    procecessed_frame_queue3 = Queue(maxsize=100)
+    # input_frame_queue        = Queue(maxsize=100)
+    # procecessed_frame_queue1 = Queue(maxsize=100)
+    # procecessed_frame_queue2 = Queue(maxsize=100)
+    # procecessed_frame_queue3 = Queue(maxsize=100)
 
     processed_frames_queue_list = []
     processed_frames_queue_list.append(procecessed_frame_queue1)
@@ -37,7 +38,8 @@ def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir
     fp = FrameProducer(id, source, input_frame_queue, log_dir)
     fd = FaceDetector(id, data_dir, input_frame_queue, procecessed_frame_queue3, log_dir)
     fr = FaceRecognizer(id, data_dir, procecessed_frame_queue3, processed_frames_queue_list, log_dir)
-    vs = VideoShow(id, procecessed_frame_queue1, fps, log_dir)
+    #vs = VideoShow(id, procecessed_frame_queue1, fps, log_dir)
+    #vs = VideoShow(procecessed_frame_queue1)
     vr = VideoRecorder(id, procecessed_frame_queue2, fps, fragment_duration, log_dir, out_dir)
 
     # start processes
@@ -50,13 +52,15 @@ def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir
     fr_proc = Process(target = fr.recognizeMultipleFaces)
     fr_proc.start()
 
-    vs_proc = Process(target = vs.show)
-    vs_proc.start()
-
+    #vs_proc = Process(target = vs.show)
+    # vs_proc = Process(target=start_video_player, args=(procecessed_frame_queue2,))
+    # vs_proc.start()
+ 
     vr_proc = Process(target = vr.record)
     vr_proc.start()
 
-    return fp_proc, fd_proc, fr_proc, vs_proc, vr_proc
+    #return fp_proc, fd_proc, fr_proc, vs_proc, vr_proc
+    return fp_proc, fd_proc, fr_proc, vr_proc
 
 def create_log_out_dir(log_dir, out_dir, id):
     try:
@@ -107,6 +111,7 @@ def run_config(config):
     local_sources = config.get('local_sources', [])
     for local_source in local_sources:
         video_files = local_source.get('video_files', [])
+
         for video_file in video_files:
             print(f"  Video File Name: {video_file['video_name']},\n \
                       File: {video_file['location']},\n \
@@ -117,21 +122,25 @@ def run_config(config):
                 ldir,odir=create_log_out_dir(log_dir=log_dir,
                                         out_dir=out_dir,
                                        id=video_file['video_name'])
-                fp,fd,fr,vs,vr = start_process(id=video_file['video_name'], 
+                #fp,fd,fr,vs,vr = start_process(id=video_file['video_name'],
+                fp,fd,fr,vr = start_process(id=video_file['video_name'], 
                                             source=video_file['location'],
                                             fps = video_file['fps'],
-                                            fragment_duration = video_file['fragment_duration'], 
+                                            fragment_duration = video_file['fragment_duration'],
                                             data_dir=data_dir,
                                             log_dir=ldir,
                                             out_dir=odir)
                 process_list.append(fp)
                 process_list.append(fd)
                 process_list.append(fr)
-                process_list.append(vs)
+                #process_list.append(vs)
                 process_list.append(vr)
 
-    for process in process_list:
-        process.join()
+    # for process in process_list:
+    #     process.join()
+
+def get_output_queue():
+    return procecessed_frame_queue1 
 
 if __name__ == "__main__":
     config_path = 'cfg/config.yaml'

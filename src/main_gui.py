@@ -1,118 +1,229 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, Listbox, Scrollbar
 import cv2
-import yaml
-from threading import Thread
 from PIL import Image, ImageTk
+import threading
+import queue
+import yaml
+import base64
+import json
+import numpy as np
 
 from config_manager import load_yaml_config
 from config_manager import run_config
+from config_manager import get_output_queue
 
-class VideoPlayer:
-    def __init__(self, canvas):
-        self.canvas = canvas
-        self.video_source = None
-        self.cap = None
-        self.playing = False
+class VideoPlayer(tk.Frame):
+    def __init__(self, master, frame_queue):
+        super().__init__(master)
+        self.master = master
+        self.frame_queue = frame_queue
 
-    def load_video(self, source):
-        self.video_source = source
-        self.cap = cv2.VideoCapture(self.video_source)
+        self.canvas = tk.Canvas(self, width=640, height=480)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
 
-    def play_video(self):
-        if not self.cap:
-            messagebox.showerror("Error", "No video loaded.")
-            return
+        self.pack(fill=tk.BOTH, expand=True)
 
-        self.playing = True
-        self._play_video()
+    # def update_video_frame(self):
+    #     if not self.frame_queue.empty():
+    #         frame = self.frame_queue.get()
+    #         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    #         img = Image.fromarray(frame)
+    #         imgtk = ImageTk.PhotoImage(image=img)
+    #         self.canvas.create_image(0, 0, anchor='nw', image=imgtk)
+    #         self.imgtk = imgtk
+    #     self.after(10, self.update_video_frame)
 
-    def _play_video(self):
-        if not self.playing:
-            return
+    def update_video_frame(self):
 
-        ret, frame = self.cap.read()
-        if ret:
+        if not self.frame_queue.empty():
+            
+            message = self.frame_queue.get()
+
+            if ( message is None ):
+                return
+
+            data = json.loads(message)
+
+            # Extract frame id
+            frame_id = data['frame_id']
+            
+            # Extract and decode the image
+            frame = decode_frame(data['image'])
+
+            # ret, frame = cap.read()
+            # if not ret:
+            #     break
+
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = cv2.resize(frame, (self.canvas.winfo_width(), self.canvas.winfo_height()))
-            img = ImageTk.PhotoImage(image=Image.fromarray(img))
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=img)
-            self.canvas.image = img
-            self.canvas.after(10, self._play_video)
-        else:
-            self.playing = False
-            self.cap.release()
+            img = Image.fromarray(frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.canvas.create_image(0, 0, anchor='nw', image=imgtk)
+            self.imgtk = imgtk
 
-    def stop_video(self):
-        self.playing = False
-        if self.cap:
-            self.cap.release()
-            self.cap = None
+        self.after(10, self.update_video_frame)
 
-class Application(tk.Tk):
-    def __init__(self):
-        super().__init__()
+class App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("GUI Application")
 
-        self.title("Video Player")
-        self.geometry("900x680")
+        # Frames for layout
+        self.top_frame = tk.Frame(self.root)
+        self.top_frame.pack(side=tk.TOP, fill=tk.X)
 
-        self.create_top_menu()
-        self.create_frames()
+        self.left_frame = tk.Frame(self.root)
+        self.left_frame.pack(side=tk.LEFT, fill=tk.Y)
 
-        self.video_players = [VideoPlayer(self.video_canvases[i]) for i in range(4)]
+        self.right_frame = tk.Frame(self.root, width=640, height=480)
+        self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-    def create_top_menu(self):
-        top_frame = tk.Frame(self)
-        top_frame.pack(side=tk.TOP, fill=tk.X)
+        self.top_left_frame = tk.Frame(self.left_frame)
+        self.top_left_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        open_button = tk.Button(top_frame, text="Open", command=self.open_file)
-        open_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.bottom_left_frame = tk.Frame(self.left_frame)
+        self.bottom_left_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
-        play_button = tk.Button(top_frame, text="Play", command=self.play_videos)
-        play_button.pack(side=tk.LEFT, padx=5, pady=5)
+        # Buttons
+        self.load_button = tk.Button(self.top_frame, text="Load", command=self.load_file)
+        self.load_button.pack(side=tk.LEFT)
 
-        stop_button = tk.Button(top_frame, text="Stop", command=self.stop_videos)
-        stop_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.start_button = tk.Button(self.top_frame, text="Start", command=self.start_video)
+        self.start_button.pack(side=tk.LEFT)
 
-        events_button = tk.Button(top_frame, text="Events", command=self.show_events)
-        events_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.stop_button = tk.Button(self.top_frame, text="Stop", command=self.stop_video)
+        self.stop_button.pack(side=tk.LEFT)
 
-    def create_frames(self):
-        left_frame = tk.Frame(self, width=600, height=600)
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Labels and Listboxes with scrollbars
+        self.sources_label = tk.Label(self.top_left_frame, text="Sources")
+        self.sources_label.pack(side=tk.TOP, anchor='w')
 
-        self.video_canvases = [tk.Canvas(left_frame, width=300, height=300, bg="black") for _ in range(4)]
-        for i, canvas in enumerate(self.video_canvases):
-            canvas.grid(row=i//2, column=i%2, padx=5, pady=5)
+        self.sources_listbox = Listbox(self.top_left_frame)
+        self.sources_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.top_left_scrollbar = Scrollbar(self.top_left_frame, command=self.sources_listbox.yview)
+        self.top_left_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.sources_listbox.config(yscrollcommand=self.top_left_scrollbar.set)
 
-        right_frame = tk.Frame(self, width=200, height=600)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        self.events_label = tk.Label(self.bottom_left_frame, text="Events")
+        self.events_label.pack(side=tk.TOP, anchor='w')
 
-    def open_file(self):
+        self.events_listbox = Listbox(self.bottom_left_frame)
+        self.events_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.bottom_left_scrollbar = Scrollbar(self.bottom_left_frame, command=self.events_listbox.yview)
+        self.bottom_left_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.events_listbox.config(yscrollcommand=self.bottom_left_scrollbar.set)
+
+    def load_file(self):
+
         file_path = filedialog.askopenfilename(filetypes=[("YAML files", "*.yaml")])
         if not file_path:
             return
 
-        config = load_yaml_config(file_path)
+        self.config = load_yaml_config(file_path)
 
-        run_config(config)
+        sources_list = []
+        local_sources = self.config.get('local_sources', [])
 
-        # video_files = data.get('videos', [])
-        # for i, video_file in enumerate(video_files):
-        #     if i < 4:
-        #         self.video_players[i].load_video(video_file)
+        for local_source in local_sources:
+            video_files = local_source.get('video_files', [])
 
-    def play_videos(self):
-        for player in self.video_players:
-            Thread(target=player.play_video).start()
+            for video_file in video_files:
+                print(f"  Video File Name: {video_file['video_name']},\n \
+                        File: {video_file['location']},\n \
+                        Enabled: {video_file['enabled']},\n \
+                        Fragment duration: {video_file['fragment_duration']}, \n \
+                        fps: {video_file['fps']}")
+                if (video_file['enabled']):
+                        self.add_sources_listbox(video_file['video_name'])
 
-    def stop_videos(self):
-        for player in self.video_players:
-            player.stop_video()
 
-    def show_events(self):
-        messagebox.showinfo("Events", "No events available.")
+        # file_path = filedialog.askopenfilename(filetypes=[("YAML files", "*.yaml")])
+        # if file_path:
+        #     with open(file_path, 'r') as file:
+        #         data = yaml.safe_load(file)
+        #         self.populate_listboxes(data)
+
+    def add_sources_listbox(self, item):
+        self.sources_listbox.insert(tk.END, item)
+
+    def populate_sources_listbox(self, data):
+        self.sources_listbox.delete(0, tk.END)
+        for item in data:
+            self.sources_listbox.insert(tk.END, item)
+
+    def populate_events_listbox(self, data):
+        self.events_listbox.delete(0, tk.END)
+        for item in data:
+            self.events_listbox.insert(tk.END, item)
+
+    def start_video(self):
+        
+        # Variables
+        #self.frame_queue = Queue(maxsize=10)
+        self.stop_event = threading.Event()
+        self.video_thread = None
+
+
+        
+        # if not self.video_thread or not self.video_thread.is_alive():
+        #     self.stop_event.clear()
+        #     #video_source = "path_to_your_video.mp4"  # Replace with the actual video path
+        #     #video_source = 0
+        #     #self.video_thread = threading.Thread(target=self.read_video, args=(video_source,))
+
+        #     self.video_thread = threading.Thread(target=self.read_video, args=(queue,))
+        #     self.video_thread.start()
+
+        run_config(self.config)
+
+        queue = get_output_queue()
+
+        # Video player frame
+        #self.video_player = VideoPlayer(self.right_frame, self.frame_queue)
+        self.video_player = VideoPlayer(self.right_frame, queue)
+          
+        self.video_player.update_video_frame()
+
+    def stop_video(self):
+        self.stop_event.set()
+        if self.video_thread:
+            self.video_thread.join()
+
+    def read_video(self, queue):
+        #cap = cv2.VideoCapture(video_source)
+
+        while not self.stop_event.is_set():
+
+            # Decode the JSON message
+            message = queue.get()
+
+            if ( message is None ):
+                break
+
+            data = json.loads(message)
+
+            # Extract frame id
+            frame_id = data['frame_id']
+            
+            # Extract and decode the image
+            frame = decode_frame(data['image'])
+
+            # ret, frame = cap.read()
+            # if not ret:
+            #     break
+
+            if not self.frame_queue.full():
+                self.frame_queue.put(frame)
+
+        #cap.release()
+
+def decode_frame(encoded_frame):
+    frame_bytes = base64.b64decode(encoded_frame)
+    frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+    frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+    return frame
 
 if __name__ == "__main__":
-    app = Application()
-    app.mainloop()
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()
