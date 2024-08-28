@@ -14,10 +14,7 @@ import logging
 import errno
 import shutil
 
-input_frame_queue        = Queue(maxsize=100)
-procecessed_frame_queue1 = Queue(maxsize=100)
-procecessed_frame_queue2 = Queue(maxsize=100)
-procecessed_frame_queue3 = Queue(maxsize=100)
+output_queues_dict = {}
 
 def load_yaml_config(file_path):
     with open(file_path, 'r') as file:
@@ -26,10 +23,12 @@ def load_yaml_config(file_path):
 
 def start_process(id, source, data_dir, fps, fragment_duration, log_dir, out_dir):
 
-    # input_frame_queue        = Queue(maxsize=100)
-    # procecessed_frame_queue1 = Queue(maxsize=100)
-    # procecessed_frame_queue2 = Queue(maxsize=100)
-    # procecessed_frame_queue3 = Queue(maxsize=100)
+    input_frame_queue        = Queue(maxsize=100)
+    procecessed_frame_queue1 = Queue(maxsize=100)
+    procecessed_frame_queue2 = Queue(maxsize=100)
+    procecessed_frame_queue3 = Queue(maxsize=100)
+
+    output_queues_dict[id] = procecessed_frame_queue1
 
     processed_frames_queue_list = []
     processed_frames_queue_list.append(procecessed_frame_queue1)
@@ -139,8 +138,8 @@ def run_config(config):
     # for process in process_list:
     #     process.join()
 
-def get_output_queue():
-    return procecessed_frame_queue1 
+def get_output_queues():
+    return output_queues_dict
 
 if __name__ == "__main__":
     config_path = 'cfg/config.yaml'

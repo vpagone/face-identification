@@ -22,14 +22,14 @@ COSINE_THRESHOLD = 0.45
 
 class FaceRecognizer():
   
-    def __init__(self, id, directory, input_queue, output_queue_list, log_dir):
+    def __init__(self, id, directory, input_queue, output_queue, logger):
 
         super().__init__()
 
         self.id = id
         self.input_queue  = input_queue
-        self.output_queue_list = output_queue_list
-        self.log_dir = log_dir
+        self.output_queue = output_queue
+        self.logger = logger
 
         # Init models face detection & recognition
         weights = os.path.join(directory, 'models',
@@ -135,11 +135,12 @@ class FaceRecognizer():
 
     def recognizeMultipleFaces(self):
 
-        self.logger = logging.getLogger(__name__)
-        file_name=path=os.path.join(self.log_dir, __name__ + '.log')
-        logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
-                            filename=file_name, 
-                            level=logging.INFO)
+        # self.logger = logging.getLogger(type(self).__name__)
+
+        # file_name=path=os.path.join(self.log_dir, type(self).__name__ + '.log')
+        # logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
+        #                     filename=file_name, 
+        #                     level=logging.INFO)
 
         self.logger.info('Started')
 
@@ -197,8 +198,10 @@ class FaceRecognizer():
                 data['names'] = faceNames
                 json_object = json.dumps(data)
 
-                for output_queue in self.output_queue_list:
-                    output_queue.put(json_object)
+                # for output_queue in self.output_queue_list:
+                #     output_queue.put(json_object)
+
+                self.output_queue.put(json_object)
 
                 elapsed = time.time() - dtot
                 self.logger.info("time total = {:.3f} estimated fps: {:.3f}".format(elapsed, 1/elapsed))

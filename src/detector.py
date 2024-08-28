@@ -20,14 +20,14 @@ COSINE_THRESHOLD = 0.45
 
 class FaceDetector():
   
-    def __init__(self, id, directory, input_queue, output_queue, log_dir):
+    def __init__(self, id, directory, input_queue, output_queue, logger):
 
         super().__init__()
 
         self.id = id
         self.input_queue  = input_queue
         self.output_queue = output_queue
-        self.log_dir = log_dir
+        self.logger = logger
 
         # Init models face detection & recognition
         weights = os.path.join(directory, 'models',
@@ -86,11 +86,12 @@ class FaceDetector():
 
     def detectAndTrackMultipleFaces(self):
 
-        self.logger = logging.getLogger(__name__)
-        file_name=path=os.path.join(self.log_dir, __name__ + '.log')
-        logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
-                            filename=file_name, 
-                            level=logging.INFO)
+        # self.logger = logging.getLogger(type(self).__name__)
+
+        # file_name=path=os.path.join(self.log_dir, type(self).__name__ + '.log')
+        # logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
+        #                     filename=file_name, 
+        #                     level=logging.INFO)
 
         self.logger.info('Started')
 

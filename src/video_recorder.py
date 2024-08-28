@@ -11,12 +11,12 @@ class VideoRecorder:
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, queue, fps, fragment_duration, log_dir, out_dir):
+    def __init__(self, id, queue, fps, fragment_duration, logger, out_dir):
 
         self.id = id
         self.queue = queue
         self.fps = fps
-        self.log_dir = log_dir
+        self.logger = logger
         self.out_dir = out_dir
 
         self.stopped = False
@@ -31,11 +31,12 @@ class VideoRecorder:
  
     def record(self):
 
-        self.logger = logging.getLogger(__name__)
-        log_file_name=path=os.path.join(self.log_dir, __name__ + '.log')
-        logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
-                            filename=log_file_name, 
-                            level=logging.INFO)
+        # self.logger = logging.getLogger(type(self).__name__)
+
+        # log_file_name=path=os.path.join(self.log_dir, type(self).__name__ + '.log')
+        # logging.basicConfig(format='%(levelname)-6s %(asctime)s [%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s', 
+        #                     filename=log_file_name, 
+        #                     level=logging.INFO)
 
         self.logger.info('Started')
 
@@ -84,7 +85,7 @@ class VideoRecorder:
 
             if ( frame_counter == 0 ):
                 start_frame_id = frame_id
-                tmp_file_name=path=os.path.join('/tmp', self.id + '-' + str(frame_id) + '.avi')
+                tmp_file_name=path=os.path.join('/tmp', str(self.id) + '-' + str(frame_id) + '.avi')
                 video_out = cv2.VideoWriter(tmp_file_name,cv2.VideoWriter_fourcc('M','J','P','G'), self.fps, (640,480))
                 #setFaceNames = set()
 
