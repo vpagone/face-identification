@@ -5,11 +5,11 @@ from core import FaceIdentifier
 from threading import Thread, Lock
 from multiprocessing import Process
 from multiprocessing import Queue
-from frame_producer import FrameProducer
-from video_shower_new import start_video_player
-from video_recorder import VideoRecorder
-from detector import FaceDetector
-from recognizer import FaceRecognizer
+# from frame_producer import FrameProducer
+# from video_shower_new import start_video_player
+# from video_recorder import VideoRecorder
+# from detector import FaceDetector
+# from recognizer import FaceRecognizer
 import logging
 import errno
 import shutil

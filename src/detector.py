@@ -20,7 +20,7 @@ COSINE_THRESHOLD = 0.45
 
 class FaceDetector():
   
-    def __init__(self, id, directory, input_queue, output_queue, logger):
+    def __init__(self, id, directory, input_queue, output_queue, logger, stop_event):
 
         super().__init__()
 
@@ -28,6 +28,7 @@ class FaceDetector():
         self.input_queue  = input_queue
         self.output_queue = output_queue
         self.logger = logger
+        self.stop_event = stop_event
 
         # Init models face detection & recognition
         weights = os.path.join(directory, 'models',
@@ -83,7 +84,6 @@ class FaceDetector():
                 self.logger.error(e)
                 return None
 
-
     def detectAndTrackMultipleFaces(self):
 
         # self.logger = logging.getLogger(type(self).__name__)
@@ -105,12 +105,13 @@ class FaceDetector():
 
         try:
 
-            while True:
+            #while not self.stop_flag:
+            while not self.stop_event.is_set():
 
                 dtot = time.time()
 
                 # Decode the JSON message
-                message = self.input_queue.get()
+                message = self.input_queue.get(timeout=1)
 
                 if ( message is None ):
                     break
@@ -281,7 +282,18 @@ class FaceDetector():
                 data['boxes'] = faceBoxes
                 json_object = json.dumps(data)
 
-                self.output_queue.put(json_object)
+                #self.output_queue.put(json_object)
+
+                # Put the JSON object into the queue
+                while self.output_queue.full():
+                    time.sleep(0.01)  # Sleep briefly if the queue is full
+                    if self.stop_event.is_set():
+                        break
+                    
+                if ( not self.output_queue.full() ):
+                    self.output_queue.put(json_object)
+                    self.logger.info( 'Put frame {}'.format(frame_id) )
+                    frame_id += 1
 
                 elapsed = time.time() - dtot
                 #self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')
@@ -297,4 +309,10 @@ class FaceDetector():
         #Destroy any OpenCV windows and exit the application
         #cv2.destroyAllWindows()
         #exit(0)
+
+        if ( not self.output_queue.full() ):
+            self.output_queue.put(None)
+
+        self.logger.info('Stop')
+
 

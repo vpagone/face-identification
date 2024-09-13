@@ -22,7 +22,7 @@ COSINE_THRESHOLD = 0.45
 
 class FaceRecognizer():
   
-    def __init__(self, id, directory, input_queue, output_queue, logger):
+    def __init__(self, id, directory, input_queue, output_queue, logger, stop_event):
 
         super().__init__()
 
@@ -30,6 +30,7 @@ class FaceRecognizer():
         self.input_queue  = input_queue
         self.output_queue = output_queue
         self.logger = logger
+        self.stop_event = stop_event
 
         # Init models face detection & recognition
         weights = os.path.join(directory, 'models',
@@ -146,7 +147,8 @@ class FaceRecognizer():
 
         try:
 
-            while True:
+            #while not self.stop_flag:
+            while not self.stop_event.is_set():
 
                 dtot = time.time()
 
@@ -154,7 +156,7 @@ class FaceRecognizer():
                 faceScores   = {}
 
                 # Decode the JSON message
-                message = self.input_queue.get()
+                message = self.input_queue.get(timeout=1)
 
                 if ( message is None ):
                     break
@@ -201,12 +203,23 @@ class FaceRecognizer():
                 # for output_queue in self.output_queue_list:
                 #     output_queue.put(json_object)
 
-                self.output_queue.put(json_object)
+                # Put the JSON object into the queue
+                while self.output_queue.full():
+                    time.sleep(0.01)  # Sleep briefly if the queue is full
+                    if self.stop_event.is_set():
+                        break
+                    
+                if ( not self.output_queue.full() ):
+                    self.output_queue.put(json_object)
+                    self.logger.info( 'Put frame {}'.format(frame_id) )
+                    frame_id += 1
+
+                #self.output_queue.put(json_object)
 
                 elapsed = time.time() - dtot
                 self.logger.info("time total = {:.3f} estimated fps: {:.3f}".format(elapsed, 1/elapsed))
 
-
+            
 
         #To ensure we can also deal with the user pressing Ctrl-C in the console
         #we have to check for the KeyboardInterrupt exception and break out of
@@ -214,7 +227,15 @@ class FaceRecognizer():
         except KeyboardInterrupt as e:
             pass
 
+        if ( not self.output_queue.full() ):
+            self.output_queue.put(None)
+            
+        self.logger.info('Stop')
+
         #Destroy any OpenCV windows and exit the application
         #cv2.destroyAllWindows()
         #exit(0)
+
+    def stop(self):
+        self.stop_flag = True
 
