@@ -16,13 +16,15 @@ class VideoShow:
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, queue, fps, logger, label, stop_event):
+    def __init__(self, id, input_queue, output_queue, fps, logger, label, list_widget, stop_event):
 
         self.id = id
-        self.queue = queue
+        self.input_queue = input_queue
+        self.output_queue = output_queue
         self.fps = fps
         self.logger = logger
         self.label = label
+        self.list_widget = list_widget
         self.stop_event = stop_event
 
         # self.receive_frame = ReceiveFrame(queue_name)
@@ -46,8 +48,13 @@ class VideoShow:
 
         #raw_frame_window = self.id + '_raw'
 
-        setFaceNames    = {}
-        setFaceScores   = {}
+        setFaceNames    = set()
+        setFaceScores   = set()
+
+        faceNames = {}
+        faceScores = {}
+
+        globalEvent = set()
 
         thickness = 2
         scale = 0.6
@@ -62,7 +69,7 @@ class VideoShow:
             start_time = time.time() 
 
             # Decode the JSON message
-            message = self.queue.get(timeout=1)
+            message = self.input_queue.get(timeout=1)
 
             if ( message is None ):
                 break
@@ -76,16 +83,51 @@ class VideoShow:
             frame = self.decode_frame(data['image'])
 
             faceBoxesByFrame  = data['boxes']
-
             faceNamesByFrame  = data['names']
             faceScoresByFrame = data['scores']
 
+            seconds, _ = divmod(frame_id, self.fps)
+            minutes, remaining_seconds = divmod(seconds, 60)
+
             for id in faceNamesByFrame.keys():
                 if ( not faceNamesByFrame[id] in setFaceNames ):
-                    setFaceNames[id] = faceNamesByFrame[id]
+                    setFaceNames.add(faceNamesByFrame[id])
+                faceNames[id] = faceNamesByFrame[id]
+            for id in faceScoresByFrame.keys():
+                faceScores[id] = faceScoresByFrame[id]
+
+            newEvent = set(faceBoxesByFrame.keys())
+
+            # event for new faces
+            self.logger.info('new    events: {}'.format(newEvent))
+            self.logger.info('global events: {}'.format(globalEvent))
+
+            # event added
+            addedEvents = newEvent - globalEvent
+            self.logger.info('added   events:    {}'.format(addedEvents))
+            # event deleted
+            deletedEvents = globalEvent - newEvent
+            self.logger.info('deleted events:    {}'.format(deletedEvents))
+
+            for event in addedEvents:
+                if ( event in faceScores ):
+                    self.logger.info('BEGIN: {}'.format(faceNames[event]))
+                    globalEvent.add(event)
+                    #QMetaObject.invokeMethod(self.list_widget, "addItem", Qt.AutoConnection, Q_ARG(str, "A"))
+                    self.list_widget.insertItem(0, self.id + " " + str(minutes) + ":" + str(remaining_seconds) + " BEGIN: " + faceNames[event])
+            for event in deletedEvents:
+                if ( event in faceScores ):
+                    self.logger.info('END:   {}'.format(faceNames[event]))
+                    globalEvent.remove(event)
+                    self.list_widget.insertItem(0, self.id + " " + str(minutes) + ":" + str(remaining_seconds) + " END:   " + faceNames[event])
+                    #QMetaObject.invokeMethod(self.list_widget, "addItem", Qt.AutoConnection, Q_ARG(str, "B"))    
+
+            for id in faceNamesByFrame.keys():
+                if ( not faceNamesByFrame[id] in faceNames ):
+                    faceNames[id] = faceNamesByFrame[id]
             for id in faceScoresByFrame.keys():
                 if ( not faceScoresByFrame[id] in faceScoresByFrame ):
-                    setFaceScores[id] = faceScoresByFrame[id]
+                    faceScores[id] = faceScoresByFrame[id]
 
             self.logger.info('display frame: {}'.format(frame_id))
             self.logger.info('names: {}'.format(faceNamesByFrame))
@@ -103,11 +145,11 @@ class VideoShow:
                     t_w = int(tracked_position[2])
                     t_h = int(tracked_position[3])
 
-                    if fid in setFaceNames.keys():
+                    if fid in faceNames.keys():
                         cv2.rectangle(frame, (t_x, t_y),
                                         (t_x + t_w , t_y + t_h),
                                         (0, 255, 0) ,thickness, cv2.LINE_AA)
-                        text = "{0} ({1:.2f})".format(setFaceNames[fid], setFaceScores[fid])
+                        text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
                         cv2.putText(frame, text, 
                                         (int(t_x + t_w/2), int(t_y)), 
                                         font,
@@ -162,8 +204,19 @@ class VideoShow:
             #self.canvas.create_image(0, 0, anchor=tk.NW, image=img)
             #self.canvas.image = img
 
-        # if ( not self.output_queue.full() ):
-        #     self.output_queue.put(None)
+            # if ( not self.output_queue.full() ):
+            #     self.output_queue.put(None)
+
+            # Put the JSON object into the queue
+            while self.output_queue.full():
+                time.sleep(0.01)  # Sleep briefly if the queue is full
+                if self.stop_event.is_set():
+                    break
+                
+            if ( not self.output_queue.full() ):
+                self.output_queue.put(message)
+                self.logger.info( 'Put frame {}'.format(frame_id) )
+
         self.logger.info('Stop')
 
     def stop(self):

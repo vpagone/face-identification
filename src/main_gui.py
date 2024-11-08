@@ -1,31 +1,30 @@
-import tkinter as tk
-from tkinter import filedialog, Listbox, Scrollbar, Label
-from tkinter import Label
+import sys
 import cv2
+import logging
 import threading
-from PIL import Image, ImageTk
-from queue import Queue
+import queue
+import os
 import json
 import base64
 import numpy as np
-import os
+from PyQt5.QtCore import Qt, pyqtSlot, QMetaObject, Q_ARG
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import QApplication, QLabel, QGridLayout, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QFileDialog, QListWidget
 
 from config_manager import load_yaml_config, create_log_out_dir
 from frame_producer import FrameProducer
 from detector import FaceDetector
 from recognizer import FaceRecognizer
 from video_recorder import VideoRecorder
-
-import logging
-import threading
-import time
-from threading import Thread
+from video_shower import VideoShow
 
 def get_thread_logger(log_dir, log_name):
     """Get or create a logger for the current thread."""
     if not hasattr(thread_local, 'logger'):
         # Generate a unique log file name based on the thread name
         log_file_name=path=os.path.join(log_dir, log_name + '.log')
+        # print(log_dir)
+        # print(log_file_name)
 
         # Create a logger
         logger = logging.getLogger(threading.current_thread().name)
@@ -47,310 +46,284 @@ def get_thread_logger(log_dir, log_name):
 
     return thread_local.logger
 
-def load_file(self):
+class VideoPlayer(QWidget):
 
-    self.config = load_yaml_config('/home/vito/dev/fr-w-sface/cfg')
+    def __init__(self):
 
-    sources_list = []
-    local_sources = self.config.get('local_sources', [])
+        super().__init__()
 
-    for local_source in local_sources:
-        video_files = local_source.get('video_files', [])
+        # Create 4 queues to hold video frames produced by readers
+        frame_queues_1 = [queue.Queue(maxsize=100) for _ in range(4)]
+        self.frame_queues_1 = frame_queues_1
 
-        for video_file in video_files:
-            print(f"  Video File Name: {video_file['video_name']},\n \
-                    File: {video_file['location']},\n \
-                    Enabled: {video_file['enabled']},\n \
-                    Fragment duration: {video_file['fragment_duration']}, \n \
-                    fps: {video_file['fps']}")
-            if (video_file['enabled']):
-                    sources_list.append(video_file['video_name'])
+        # Create 4 queues to hold video frames produced by detectors
+        frame_queues_2 = [queue.Queue(maxsize=100) for _ in range(4)]
+        self.frame_queues_2 = frame_queues_2
 
-    return sources_list
-    
-def decode_frame(encoded_frame):
-    frame_bytes = base64.b64decode(encoded_frame)
-    frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
-    frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
-    return frame
+        # Create 4 queues to hold video frames produced by recognizers
+        frame_queues_3 = [queue.Queue(maxsize=100) for _ in range(4)]
+        self.frame_queues_3 = frame_queues_3
 
-# Function to display video frames from a queue on a specific label
-def play_video_from_queue(input_queue, output_queue, label):
+        # Create 4 queues to hold video frames produced by displayers
+        frame_queues_4 = [queue.Queue(maxsize=100) for _ in range(4)]
+        self.frame_queues_4 = frame_queues_4
 
-    setFaceNames    = {}
-    setFaceScores   = {}
+        # Create 4 queues to hold video frames produced by recorders
+        frame_queues_5 = [queue.Queue(maxsize=100) for _ in range(4)]
+        self.frame_queues_5 = frame_queues_5
 
-    thickness = 2
-    scale = 0.6
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    green = (0, 255, 0)
-    orange = (0, 165, 255)
+        self.video_paths = [""] * 4  # Store paths to the video files
+        self.fps         = [""] * 4  # Store paths to the video fps
+        self.src_names   = [""] * 4  # Store paths to the log dir
+        self.duration    = [""] * 4  # Store paths to the recording duration
+        self.out_dirs    = [""] * 4  # Store paths to the output dir
+        self.log_dirs    = [""] * 4  # Store paths to the log dir
+        
 
-    while True:
-        # Get the frame from the queue
-        message = input_queue.get()
+        self.read_threads       = [None] * 4  # Store the threads
+        self.detector_threads   = [None] * 4  # Store the threads
+        self.recognizer_threads = [None] * 4  # Store the threads
+        self.shower_threads     = [None] * 4  # Store the threads
+        self.recorder_threads   = [None] * 4  # Store the threads
 
-        if ( message is None ):
-            return
+        # Create the stop event
+        self.stop_event = threading.Event()
 
-        data = json.loads(message)
+        self.init_ui()
 
-        # Extract frame id
-        frame_id = data['frame_id']
+    def init_ui(self):
+        # Set up the window
+        self.setWindowTitle("4 Videos Player with Sources and Events")
+        self.setGeometry(100, 100, 1400, 800)
 
-        # Extract and decode the image
-        frame = decode_frame(data['image'])
+        # Create 4 QLabel widgets to display the video frames
+        self.video_labels = [QLabel(self) for _ in range(4)]
 
-        faceBoxesByFrame  = data['boxes']
+        # Set minimum size for video labels to make the video area bigger
+        for label in self.video_labels:
+            label.setMinimumSize(320, 240)  # Set minimum size for each video display
 
-        faceNamesByFrame  = data['names']
-        faceScoresByFrame = data['scores']
+        # Grid layout to arrange the QLabel widgets in a 2x2 grid
+        grid_layout = QGridLayout()
+        grid_layout.addWidget(self.video_labels[0], 0, 0)  # Top-left
+        grid_layout.addWidget(self.video_labels[1], 0, 1)  # Top-right
+        grid_layout.addWidget(self.video_labels[2], 1, 0)  # Bottom-left
+        grid_layout.addWidget(self.video_labels[3], 1, 1)  # Bottom-right
 
-        for id in faceNamesByFrame.keys():
-            if ( not faceNamesByFrame[id] in setFaceNames ):
-                setFaceNames[id] = faceNamesByFrame[id]
-        for id in faceScoresByFrame.keys():
-            if ( not faceScoresByFrame[id] in faceScoresByFrame ):
-                setFaceScores[id] = faceScoresByFrame[id]
+        # Create buttons for load, start, stop, and quit
+        load_button  = QPushButton("Load",  self)
+        start_button = QPushButton("Start", self)
+        stop_button  = QPushButton("Stop",  self)
+        quit_button  = QPushButton("Quit",  self)
 
-        # self.logger.info('display frame: {}'.format(frame_id))
-        # self.logger.info('names: {}'.format(faceNamesByFrame))
-        # self.logger.info('boxes: {}'.format(faceBoxesByFrame))            
-        # self.logger.info('scores: {}'.format(faceScoresByFrame))
+        # Connect buttons to their respective functions
+        load_button.clicked.connect(self.load_videos)
+        start_button.clicked.connect(self.start_videos)
+        stop_button.clicked.connect(self.stop_videos)
+        quit_button.clicked.connect(QApplication.quit)  # Closes the application
 
-        for fid in faceBoxesByFrame.keys():
+        # Create a horizontal layout for the buttons (at the top)
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(load_button)
+        button_layout.addWidget(start_button)
+        button_layout.addWidget(stop_button)
+        button_layout.addWidget(quit_button)  # Add the Quit button
 
-                tracked_position = faceBoxesByFrame[fid]
-                
-                t_x = int(tracked_position[0])
-                t_y = int(tracked_position[1])
-                t_w = int(tracked_position[2])
-                t_h = int(tracked_position[3])
+        # Create QLabel widgets to label the "Sources" and "Events" lists
+        sources_label = QLabel("Sources", self)
+        events_label = QLabel("Events", self)
 
-                if fid in setFaceNames.keys():
-                    cv2.rectangle(frame, (t_x, t_y),
-                                    (t_x + t_w , t_y + t_h),
-                                    (0, 255, 0) ,thickness, cv2.LINE_AA)
-                    text = "{0} ({1:.2f})".format(setFaceNames[fid], setFaceScores[fid])
-                    cv2.putText(frame, text, 
-                                    (int(t_x + t_w/2), int(t_y)), 
-                                    font,
-                                    scale, green, thickness, cv2.LINE_AA)
-                else:
-                    cv2.rectangle(frame, (t_x, t_y),
-                                    (t_x + t_w , t_y + t_h),
-                                    orange, thickness, cv2.LINE_AA)
+        # Create two QListWidget for "Sources" and "Events"
+        self.sources_list = QListWidget(self)
+        #self.sources_list.addItems(["Source 1", "Source 2", "Source 3", "Source 4"])  # Example items
+        self.events_list = QListWidget(self)
+        
+        #self.events_list.addItems(["Event 1", "Event 2", "Event 3", "Event 4"])  # Example items
 
-        # Convert the frame from BGR (OpenCV format) to RGB
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Set a larger minimum width for the "Events" list to make it wider
+        self.events_list.setMinimumWidth(300)  # Set the minimum width for the "Events" list
 
-        # Convert the frame to an image format compatible with Tkinter
-        image = Image.fromarray(frame)
-        image = ImageTk.PhotoImage(image)
+        # Create a vertical layout for each list with their corresponding labels
+        sources_layout = QVBoxLayout()
+        sources_layout.addWidget(sources_label)
+        sources_layout.addWidget(self.sources_list)
 
-        # Update the label with the new frame
-        label.config(image=image)
-        label.image = image
+        events_layout = QVBoxLayout()
+        events_layout.addWidget(events_label)
+        events_layout.addWidget(self.events_list)
 
-        # Slow down the frame rate to 30fps
-        #label.update()
+        # Create a horizontal layout for the Sources and Events lists (at the bottom)
+        lists_layout = QHBoxLayout()
+        lists_layout.addLayout(sources_layout)  # Add Sources list
+        lists_layout.addLayout(events_layout)   # Add Events list
 
-        # Allow GUI to process other events
-        label.update_idletasks()
+        # Add stretch factor to give more space to the Events list in the layout
+        lists_layout.setStretch(0, 1)  # Sources list with less space
+        lists_layout.setStretch(1, 2)  # Events list with more space
 
-        #output_queue.put(message)
-        json_object = json.dumps(data)
-        output_queue.put(json_object)
+        # Create a vertical layout to stack everything: buttons -> videos -> lists
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(button_layout)  # Add buttons at the top
+        main_layout.addLayout(grid_layout)    # Add video grid in the center
+        main_layout.addLayout(lists_layout)   # Add lists at the bottom
 
-def video_source(i, video_path, output_queue, log_dir):
-    logger = get_thread_logger(log_dir, 'FrameProducer')
-    fp = FrameProducer(i, video_path, output_queue, logger)
-    fp.produce()
+        self.setLayout(main_layout)
 
-def detector(i, data_dir, input_queue, output_queue, log_dir):
-    logger = get_thread_logger(log_dir, 'FaceDetector')
-    fd = FaceDetector(id, data_dir, input_queue, output_queue, logger)
-    fd.detectAndTrackMultipleFaces()
+    def video_source(self, i, video_path, output_queue, log_dir, stop_event):
+        logger = get_thread_logger(log_dir, 'FrameProducer')
+        fp = FrameProducer(video_path, output_queue, logger, stop_event)
+        fp.read_frames()
 
-def recognizer(i, data_dir, input_queue, output_queue, log_dir):
-    logger = get_thread_logger(log_dir, 'FaceRecognizer')
-    fr = FaceRecognizer(id, data_dir, input_queue, output_queue, logger)
-    fr.recognizeMultipleFaces()
+    def detector(self, i, data_dir, input_queue, output_queue, log_dir, stop_event):
+        logger = get_thread_logger(log_dir, 'FaceDetector')
+        fd = FaceDetector(id, data_dir, input_queue, output_queue, logger, stop_event)
+        fd.detectAndTrackMultipleFaces()
 
-def video_recorder(i, input_queue, fps, duration, log_dir, out_dir):
-    logger = get_thread_logger(log_dir, 'VideoRecorder')
-    vr = VideoRecorder(i, input_queue, fps, duration, logger, out_dir)
-    vr.record()
+    def recognizer(self, i, data_dir, input_queue, output_queue, log_dir, stop_event):
+        logger = get_thread_logger(log_dir, 'FaceRecognizer')
+        fr = FaceRecognizer(id, data_dir, input_queue, output_queue, logger, stop_event)
+        fr.recognizeMultipleFaces()
 
-if __name__ == "__main__":
+    def video_shower(self, i, input_queue, output_queue, fps, log_dir, label, list_widget, stop_event):
+        logger = get_thread_logger(log_dir, 'VideoShower')
+        vs = VideoShow(i, input_queue, output_queue, fps, logger, label, list_widget, stop_event)
+        vs.show()
 
-    # Create a thread-local object to hold the loggers
-    thread_local = threading.local()
+    def video_recorder(self, i, input_queue, fps, duration, log_dir, out_dir, stop_event):
+        logger = get_thread_logger(log_dir, 'VideoRecorder')
+        vr = VideoRecorder(i, input_queue, fps, duration, logger, out_dir, stop_event)
+        vr.record()
 
-    config = load_yaml_config('/home/vito/dev/fr-w-sface/cfg/config.yaml')
-    general = config.get('general', {})
+    def load_videos(self):
 
-    data_dir = general[0]['data_dir'] # contains npy for embedings and registration photos
-    log_dir  = general[1]['log_dir']
-    out_dir  = general[2]['output_dir']
+        config_file = QFileDialog.getOpenFileName(self, f"Select configuration")
 
-    #create log dir and output dir
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
+        self.config = load_yaml_config(config_file[0])
 
-    videos = []
-    fps = []
-    duration = []
-    out_dirs = []
-    log_dirs = []
-    local_sources = config.get('local_sources', [])
-    for local_source in local_sources:
-        video_files = local_source.get('video_files', [])
+        general = self.config.get('general', {})
 
-        for video_file in video_files:
-            print(f"  Video File Name: {video_file['video_name']},\n \
+        self.data_dir = general[0]['data_dir'] # contains npy for embedings and registration photos
+        log_dir  = general[1]['log_dir']
+        out_dir  = general[2]['output_dir']
+
+        sources_list = []
+        local_sources = self.config.get('local_sources', [])
+
+        for local_source in local_sources:
+            video_files = local_source.get('video_files', [])
+
+            i=0
+            for video_file in video_files:
+                print(f"  Video File Name: {video_file['video_name']},\n \
                         File: {video_file['location']},\n \
                         Enabled: {video_file['enabled']},\n \
                         Fragment duration: {video_file['fragment_duration']}, \n \
                         fps: {video_file['fps']}")
-            if (video_file['enabled']):
-                ldir,odir=create_log_out_dir(log_dir=log_dir,
-                                                out_dir=out_dir,
-                                                id=video_file['video_name'])
-                videos.append(video_file['location'])
-                fps.append(video_file['fps'])
-                duration.append(video_file['fragment_duration'])
-                out_dirs.append(odir)
-                log_dirs.append(ldir)
+                if (video_file['enabled']):
+                        
+                        ldir,odir=create_log_out_dir(log_dir=log_dir,
+                                                    out_dir=out_dir,
+                                                    id=video_file['video_name'])
 
-    # Create the main application window
-    root = tk.Tk()
-    root.title("Face Identification Project")
+                        self.video_paths[i] = video_file['location']
+                        self.video_labels[i].setText(video_file['video_name'])
 
-###############
+                        self.fps[i] = video_file['fps']
+                        self.duration[i] = video_file['fragment_duration']
+                        self.out_dirs[i] = odir
+                        self.log_dirs[i] = ldir
+                        self.src_names[i] = video_file['video_name']
 
-    # Frames for layout
-    top_frame = tk.Frame(root)
-    top_frame.pack(side=tk.TOP, fill=tk.X)
+                        i = i + 1
+                        self.sources_list.addItem(video_file['video_name'])
 
-    left_frame = tk.Frame(root)
-    left_frame.pack(side=tk.LEFT, fill=tk.Y)
+    def start_videos(self):
 
-    right_frame = tk.Frame(root, width=640, height=480)
-    right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        """Start playing the videos by launching reader threads."""
+        for i in range(4):
+            if self.video_paths[i] != "":
+                self.read_threads[i] = threading.Thread(target=self.video_source, args=(i, 
+                                                                                        self.video_paths[i], 
+                                                                                        self.frame_queues_1[i], 
+                                                                                        self.log_dirs[i], 
+                                                                                        self.stop_event))
+                self.read_threads[i].start()
 
-    top_left_frame = tk.Frame(left_frame)
-    top_left_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        for i in range(4):
+            if self.video_paths[i] != "":
+                self.detector_threads[i] = threading.Thread(target=self.detector, args=(i, 
+                                                                                        self.data_dir, 
+                                                                                        self.frame_queues_1[i], 
+                                                                                        self.frame_queues_2[i], 
+                                                                                        self.log_dirs[i],
+                                                                                        self.stop_event))
+                self.detector_threads[i].start()
 
-    bottom_left_frame = tk.Frame(left_frame)
-    bottom_left_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        for i in range(4):
+            if self.video_paths[i] != "":
+                self.recognizer_threads[i] = threading.Thread(target=self.recognizer, args=(i, 
+                                                                                        self.data_dir, 
+                                                                                        self.frame_queues_2[i], 
+                                                                                        self.frame_queues_3[i], 
+                                                                                        self.log_dirs[i],
+                                                                                        self.stop_event))
+                self.recognizer_threads[i].start()
 
-    # Buttons
-    load_button = tk.Button(top_frame, text="Load", command=load_file)
-    load_button.pack(side=tk.LEFT)
+        for i in range(4):
+            if self.video_paths[i] != "":
+                self.shower_threads[i] = threading.Thread(target=self.video_shower, args=(self.src_names[i], 
+                                                                                          self.frame_queues_3[i],
+                                                                                          self.frame_queues_4[i],
+                                                                                          self.fps[i],
+                                                                                          self.log_dirs[i],
+                                                                                          self.video_labels[i],
+                                                                                          self.events_list,
+                                                                                          self.stop_event))
+                self.shower_threads[i].start()
 
-    start_button = tk.Button(top_frame, text="Start")
-    start_button.pack(side=tk.LEFT)
+        for i in range(4):
+            if self.video_paths[i] != "":
+                self.recorder_threads[i] = threading.Thread(target=self.video_recorder, args=(i, 
+                                                                                          self.frame_queues_4[i],
+                                                                                          self.fps[i],
+                                                                                          self.duration[i],
+                                                                                          self.log_dirs[i],
+                                                                                          self.out_dirs[i],
+                                                                                          self.stop_event))
+                self.recorder_threads[i].start()
 
-    stop_button = tk.Button(top_frame, text="Stop")
-    stop_button.pack(side=tk.LEFT)
+    def stop_videos(self):
 
-    # Labels and Listboxes with scrollbars
-    sources_label = tk.Label(top_left_frame, text="Sources")
-    sources_label.pack(side=tk.TOP, anchor='w')
+        #print("Main thread: Stopping the worker thread")
+        self.stop_event.set()
 
-    sources_listbox = Listbox(top_left_frame)
-    sources_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    top_left_scrollbar = Scrollbar(top_left_frame, command=sources_listbox.yview)
-    top_left_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    sources_listbox.config(yscrollcommand=top_left_scrollbar.set)
+        for thread in self.read_threads:
+            if thread:
+                thread.join()
+        for thread in self.detector_threads:
+            if thread:
+                thread.join()
+        for thread in self.recognizer_threads:
+            if thread:
+                thread.join()
+        for thread in self.shower_threads:
+            if thread:
+                thread.join()
 
-    events_label = tk.Label(bottom_left_frame, text="Events")
-    events_label.pack(side=tk.TOP, anchor='w')
+def main():
 
-    events_listbox = Listbox(bottom_left_frame)
-    events_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    bottom_left_scrollbar = Scrollbar(bottom_left_frame, command=events_listbox.yview)
-    bottom_left_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    events_listbox.config(yscrollcommand=bottom_left_scrollbar.set)
+    app = QApplication(sys.argv)
 
+    # Create the PyQt5 window and pass the frame queues
+    player = VideoPlayer()
+    player.show()
 
-###############
+    # Run the PyQt5 application
+    sys.exit(app.exec_())
 
+if __name__ == '__main__':
 
+    # Create a thread-local object to hold the loggers
+    thread_local = threading.local()
 
-
-
-    # Create 4 labels to show the videos
-    labels = [Label(right_frame), Label(right_frame), Label(right_frame), Label(right_frame)]
-    for i, label in enumerate(labels):
-        label.grid(row=i // 2, column=i % 2)
-
-    # Create 4 queues, one for each video source
-    output_video_source_queues = [Queue(maxsize=10) for _ in range(len(videos))]
-
-    # Start video source threads
-    source_threads = []
-    for i in range(len(videos)):
-        thread = threading.Thread(target=video_source, args=(i, videos[i], output_video_source_queues[i], log_dirs[i]))
-        thread.start()
-        source_threads.append(thread)
-
-    # Create 4 queues, one for each detector
-    detectort_output_queues = [Queue(maxsize=10) for _ in range(len(videos))]
-
-    # Start detector threads
-    detector_threads = []
-    for i in range(len(videos)):
-        thread = threading.Thread(target=detector, args=(i, data_dir, output_video_source_queues[i], detectort_output_queues[i], log_dirs[i]))
-        thread.start()
-        detector_threads.append(thread)
-
-    # Create 4 queues, one for each recgnizer
-    recognizer_output_queues = [Queue(maxsize=10) for _ in range(len(videos))]
-
-    # Start recognizer threads
-    recognizer_threads = []
-    for i in range(len(videos)):
-        thread = threading.Thread(target=recognizer, args=(i, data_dir, detectort_output_queues[i], recognizer_output_queues[i], log_dirs[i]))
-        thread.start()
-        recognizer_threads.append(thread)
-
-    # Create 4 queues, one for each player
-    video_player_output_queues = [Queue(maxsize=10) for _ in range(len(videos))]
-
-    # Start display threads (these consume from the queues)
-    display_threads = []
-    for i in range(len(videos)):
-        thread = threading.Thread(target=play_video_from_queue, args=(recognizer_output_queues[i], video_player_output_queues[i], labels[i]))
-        thread.start()
-        display_threads.append(thread)
-
-    # Start recorder threads (these consume from the queues)
-    recorder_threads = []
-    for i in range(len(videos)):
-        thread = threading.Thread(target=video_recorder, args=(i, video_player_output_queues[i], fps[i], duration[i], log_dirs[i], out_dirs[i]))
-        thread.start()
-        recorder_threads.append(thread)
-
-
-    # Start the Tkinter main loop
-    root.mainloop()
-
-    # Wait for all threads to finish
-    for thread in source_threads:
-        thread.join()
-
-    for thread in detector_threads:
-        thread.join()
-
-    for thread in recognizer_threads:
-        thread.join()
-
-    for thread in display_threads:
-        thread.join()
-
-    for thread in recorder_threads:
-        thread.join()
+    main()

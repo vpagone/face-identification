@@ -293,7 +293,6 @@ class FaceDetector():
                 if ( not self.output_queue.full() ):
                     self.output_queue.put(json_object)
                     self.logger.info( 'Put frame {}'.format(frame_id) )
-                    frame_id += 1
 
                 elapsed = time.time() - dtot
                 #self.logger.info(f'time total = {elapsed} estimated fps: {1/elapsed}')

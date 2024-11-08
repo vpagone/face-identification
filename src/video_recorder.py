@@ -11,15 +11,14 @@ class VideoRecorder:
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, queue, fps, fragment_duration, logger, out_dir):
+    def __init__(self, id, queue, fps, fragment_duration, logger, out_dir, stop_event):
 
         self.id = id
         self.queue = queue
         self.fps = fps
         self.logger = logger
         self.out_dir = out_dir
-
-        self.stopped = False
+        self.stop_event = stop_event
 
         self.frames_per_fragment = self.fps * fragment_duration
 
@@ -40,7 +39,6 @@ class VideoRecorder:
 
         self.logger.info('Started')
 
-        
         frame_counter = 0
         recording = False
 
@@ -50,7 +48,10 @@ class VideoRecorder:
         faceNames = {}
         faceScores = {}
 
-        while not self.stopped:
+        globalEvent = set()
+        
+        #while not self.stopped:
+        while not self.stop_event.is_set():
 
             #frame = self.receive_frame.receive_frame_from_queue()
             #frame = self.queue.get()
@@ -79,6 +80,30 @@ class VideoRecorder:
             for id in faceScoresByFrame.keys():
                 faceScores[id] = faceScoresByFrame[id]
 
+            # newEvent = set(faceBoxesByFrame.keys())
+
+            # # event for new faces
+            # self.logger.info('new    events: {}'.format(newEvent))
+            # self.logger.info('global events: {}'.format(globalEvent))
+
+            # # event added
+            # addedEvents = newEvent - globalEvent
+            # self.logger.info('added   events:    {}'.format(addedEvents))
+            # # event deleted
+            # deletedEvents = globalEvent - newEvent
+            # self.logger.info('deleted events:    {}'.format(deletedEvents))
+
+            # for event in addedEvents:
+            #     if ( event in faceScores ):
+            #         self.logger.info('BEGIN: {}'.format(faceNames[event]))
+            #         globalEvent.add(event)
+            #         #QMetaObject.invokeMethod(list_widget, "addItem", Qt.AutoConnection, "BEGIN: " + faceNames[event])
+            # for event in deletedEvents:
+            #     if ( event in faceScores ):
+            #         self.logger.info('END:   {}'.format(faceNames[event]))
+            #         globalEvent.remove(event)
+            #         #QMetaObject.invokeMethod(list_widget, "addItem", Qt.AutoConnection, "BEGIN: " + faceNames[event])    
+
             recording = ( len(faceBoxesByFrame) == 0 or recording )
             if ( not recording ):
                 continue
@@ -92,7 +117,6 @@ class VideoRecorder:
 
             # Extract and decode the image
             frame = self.decode_frame(data['image'])
-
 
             self.logger.info('display frame: {}'.format(frame_id))
             self.logger.info('names: {}'.format(faceNamesByFrame))
@@ -167,7 +191,7 @@ class VideoRecorder:
         # mv tmp_file_name to out_dir
         os.rename(tmp_file_name, file_name)
 
-        self.logger.info('Finished')
+        self.logger.info('Stop')
 
     def stop(self):
         self.stopped = True
