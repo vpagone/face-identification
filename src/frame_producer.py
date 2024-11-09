@@ -24,7 +24,17 @@ class FrameProducer:
     def read_frames(self):
         """Thread function to read frames from the video file and put them in the queue."""
         self.logger.info('Started')
+
+        # # check id video_path is a number (local webcam)
+        # if ( self.video_path.isnumeric() ):
+        #     cap = cv2.VideoCapture(int(self.video_path))
+        # else:
         cap = cv2.VideoCapture(self.video_path)
+        
+        if not cap.isOpened():
+            print("Error: Could not open " + self.video_path)
+#            exit()
+
         frame_id = 1
 
 #        while not self.stop_flag:

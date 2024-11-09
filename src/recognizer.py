@@ -156,7 +156,7 @@ class FaceRecognizer():
                 faceScores   = {}
 
                 # Decode the JSON message
-                message = self.input_queue.get(timeout=1)
+                message = self.input_queue.get(True)
 
                 if ( message is None ):
                     break

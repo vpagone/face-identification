@@ -207,14 +207,75 @@ class VideoPlayer(QWidget):
         out_dir  = general[2]['output_dir']
 
         sources_list = []
+        i = 0
+
+        # remote sources
+        remote_sources = self.config.get('remote_sources', [])
+
+        for remote_source in remote_sources:
+            ip_cams = remote_source.get('ip_cams', [])
+
+            for ip_cam in ip_cams:
+                print(f"  IP cam Name: {ip_cam['ip_cam_name']}\n \
+                        URL: {ip_cam['url']},\n \
+                        Enabled: {ip_cam['enabled']},\n \
+                        Fragment duration: {ip_cam['fragment_duration']}, \n \
+                        fps: {ip_cam['fps']}")
+                if (ip_cam['enabled']):
+                        
+                        ldir,odir=create_log_out_dir(log_dir=log_dir,
+                                                    out_dir=out_dir,
+                                                    id=ip_cam['ip_cam_name'])
+
+                        self.video_paths[i] = ip_cam['url']
+                        self.video_labels[i].setText(ip_cam['ip_cam_name'])
+
+                        self.fps[i] = ip_cam['fps']
+                        self.duration[i] = ip_cam['fragment_duration']
+                        self.out_dirs[i] = odir
+                        self.log_dirs[i] = ldir
+                        self.src_names[i] = ip_cam['ip_cam_name']
+
+                        i = i + 1
+                        self.sources_list.addItem(ip_cam['ip_cam_name'])
+
+        # local sources
         local_sources = self.config.get('local_sources', [])
 
         for local_source in local_sources:
+
+            ## local webcams
+            webcams = local_source.get('webcams', [])
+
+            for webcam in webcams:
+                print(f"  Webcam Name: {webcam['webcam_name']}\n \
+                        Webcam ID: {webcam['webcam_number']},\n \
+                        Enabled: {webcam['enabled']},\n \
+                        Fragment duration: {webcam['fragment_duration']}, \n \
+                        fps: {webcam['fps']}")
+                if (webcam['enabled']):
+                        
+                        ldir,odir=create_log_out_dir(log_dir=log_dir,
+                                                    out_dir=out_dir,
+                                                    id=webcam['webcam_name'])
+
+                        self.video_paths[i] = webcam['webcam_number']
+                        self.video_labels[i].setText(webcam['webcam_name'])
+
+                        self.fps[i] = webcam['fps']
+                        self.duration[i] = webcam['fragment_duration']
+                        self.out_dirs[i] = odir
+                        self.log_dirs[i] = ldir
+                        self.src_names[i] = webcam['webcam_name']
+
+                        i = i + 1
+                        self.sources_list.addItem(webcam['webcam_name'])
+
+            ## local video files
             video_files = local_source.get('video_files', [])
 
-            i=0
             for video_file in video_files:
-                print(f"  Video File Name: {video_file['video_name']},\n \
+                print(f"  Video File Name: {video_file['video_name']}\n \
                         File: {video_file['location']},\n \
                         Enabled: {video_file['enabled']},\n \
                         Fragment duration: {video_file['fragment_duration']}, \n \

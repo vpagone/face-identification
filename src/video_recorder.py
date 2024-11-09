@@ -57,7 +57,7 @@ class VideoRecorder:
             #frame = self.queue.get()
 
             # Decode the JSON message
-            message = self.queue.get()
+            message = self.queue.get(True)
 
             if ( message is None ):
                 break

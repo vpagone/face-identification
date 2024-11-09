@@ -69,11 +69,12 @@ class VideoShow:
             start_time = time.time() 
 
             # Decode the JSON message
-            message = self.input_queue.get(timeout=1)
+
+            message = self.input_queue.get(True)
 
             if ( message is None ):
                 break
-
+            # Decode the JSON message
             data = json.loads(message)
     
             # Extract frame id
