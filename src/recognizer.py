@@ -17,8 +17,10 @@ from receive_frame_from_queue import ReceiveFrame
 from send_frame_to_queue import SendFrameToQueue
 from constants import FRAME_INTERVAL
 
+from opensearchpy import OpenSearch
+
 #COSINE_THRESHOLD = 0.5
-COSINE_THRESHOLD = 0.45
+COSINE_THRESHOLD = 0.5
 
 class FaceRecognizer():
   
@@ -52,6 +54,14 @@ class FaceRecognizer():
         # self.send_frame = SendFrameToQueue(id + '_queue_out')
         # self.send_frame.init_connection()
 
+        #opensearch connection
+        self.client = OpenSearch(
+            hosts=[{'host': 'localhost', 'port': 9200}],
+            http_auth=('admin', 'Caracas3167!'),
+            use_ssl=True,
+            verify_certs=False  # Only for testing
+        )
+
     def encode_frame(self, frame):
         _, buffer = cv2.imencode('.jpg', frame)
         encoded_frame = base64.b64encode(buffer).decode('utf-8')
@@ -69,22 +79,47 @@ class FaceRecognizer():
     #     faceNames[ fid ] = "Person " + str(fid)
 
 
-    def match(self, feature1):
+    def match(self, encoding):
 
             max_score = 0.0
             sim_user_id = ""
-            for user_id, feature2 in zip(self.names, self.encodings):
-                score = self.face_recognizer.match(
-                    feature1, feature2, cv2.FaceRecognizerSF_FR_COSINE)
-                if score >= max_score:
-                    max_score = score
-                    sim_user_id = user_id
 
-#           self.logger.info(f'match: feature1 = {feature1}\nscore = {max_score}')
+            response = self.client.search(
+                index="face_encodings",
+                body={
+                    "size": 1,
+                    "_source": ["face_name"],  
+                    "query": {
+                        "script_score": {
+                            "query": {
+                                "match_all": {}  
+                            },
+                            "script": {
+                                "source": "cosineSimilarity(params.query_vector, doc['face_encoding']) + 1.0",  
+                                "params": {
+                                "query_vector": encoding[0]  
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+
+            # Print search results
+            print("Search Results:")
+            for hit in response['hits']['hits']:
+                print(f"Document ID: {hit['_id']}, Score: {hit['_score']}")
+
+            if ( len (response['hits']['hits']) == 0 ):
+                return False, ("", 0.0)
+            
+            max_score = hit['_score'] - 1.0
+            sim_user_id = hit['_source']['face_name']
 
             if max_score < COSINE_THRESHOLD:
                 #print(f'{time.time()} match: low score = {max_score}')
                 return False, ("", 0.0)
+            
             return True, (sim_user_id, max_score)
 
     def identify_face(self, image, face, faceID, faceNames, faceScores):
