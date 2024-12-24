@@ -79,6 +79,8 @@ class VideoShow:
     
             # Extract frame id
             frame_id = data['frame_id']
+
+            self.logger.info( 'Get frame {}'.format(frame_id) )
             
             # Extract and decode the image
             frame = self.decode_frame(data['image'])
