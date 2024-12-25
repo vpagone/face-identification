@@ -3,34 +3,82 @@ general:
   - log_dir:    '/home/vito/dev/fr-w-sface/log'
   - output_dir: '/home/vito/dev/fr-w-sface/out'
 
+remote_sources:
+
+  - name: remote_cams
+    ip_cams:
+    - ip_cam_name: ip_cam_01
+      url: 'rtsp://192.168.1.69:8554/ip_cam_01'
+      enabled: False
+      fragment_duration: 60
+      fps: 14
+    - ip_cam_name: ip_cam_02
+      url: 'rtsp://192.168.1.71:8554/ip_cam_02'
+      enabled: False
+      fragment_duration: 60
+      fps: 14
+    - ip_cam_name: ip_cam_02
+      url: 'rtsp://192.168.1.71:8554/ip_cam_02'
+      enabled: False
+      fragment_duration: 60
+      fps: 14
+    - ip_cam_name: ip_cam_02
+      url: 'rtsp://192.168.1.71:8554/ip_cam_02'
+      enabled: False
+      fragment_duration: 60
+      fps: 14
+    - ip_cam_name: ip_cam_03
+      url: 'rtsp://192.168.200.90:8554/ip_cam_03'
+      enabled: False
+      fragment_duration: 60
+      fps: 14
+
 local_sources:
+
   - name: local_webcams
     webcams:
-    - webcam_name: local_webcaml_1
+    - webcam_name: local_webcam_0
       webcam_number: 0
       enabled: True
-    - webcam_name: local_webcaml_1
+      fragment_duration: 60
+      fps: 14
+    - webcam_name: local_webcam_1
       webcam_number: 1
-      enabled: True
+      enabled: False
+      fragment_duration: 60
+      fps: 14
+
   - name: local_video_files
     video_files:
     - video_name: video01
       location: '/home/vito/r/videocamara/1682921183173.mp4'
-      enabled: True
+      enabled: False
       fragment_duration: 60
       fps: 14
     - video_name: video02
       location: '/home/vito/r/videocamara/1692455074607.mp4'
       enabled: False
-      fragment_duration: 60
+      fragment_duration: 10
       fps: 14
+    - video_name: video03
+      location: '/home/vito/Downloads/GQ_Mexico.mp4'
+      enabled: False
+      fragment_duration: 20
+      fps: 24
+    - video_name: video04
+      location: '/home/vito/Downloads/Marvel StudiosEternals.mp4'
+      enabled: 
+      fragment_duration: 20
+      fps: 25
+    - video_name: video05
+      location: '/home/vito/Downloads/BestRedCarpetLooks.mp4'
+      enabled: False
+      fragment_duration: 20
+      fps: 25
+    - video_name: video06
+      location: '/home/vito/Downloads/Roger Federer fulfills a Promise _ Analysis on Body Language.mp4'
+      enabled: False
+      fragment_duration: 20
+      fps: 25
 
-network_sources:
-  - name: network_webcams
-    webcams:
-    - webcam_name: webcamr0
-      webcam_ip: x.x.x.x
-      enabled: 'false'
-    - webcam_name: webcamr1
-      webcam_ip: y.y.y.y
-      enabled: 'false'
+

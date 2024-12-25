@@ -60,20 +60,24 @@ class FrameProducer:
             })
     
             # Put the JSON object into the queue
-            while self.frame_queue.full():
-                time.sleep(0.01)  # Sleep briefly if the queue is full
-                if self.stop_event.is_set():
-                     break
+            # while self.frame_queue.full():
+            #     time.sleep(0.01)  # Sleep briefly if the queue is full
+            #     if self.stop_event.is_set():
+            #          break
                 
-            if ( not self.frame_queue.full() ):
-                self.frame_queue.put(json_object, )
-                self.logger.info( 'Put frame {}'.format(frame_id) )
-                frame_id += 1
+            # if ( not self.frame_queue.full() ):
+            #     self.frame_queue.put(json_object, )
+            #     self.logger.info( 'Put frame {}'.format(frame_id) )
+            #     frame_id += 1
+            self.frame_queue.send_frame_to_queue(json_object)
+            self.logger.info( 'Put frame {}'.format(frame_id) )
+            frame_id += 1
 
         cap.release()
         
-        if ( not self.frame_queue.full() ):
-            self.frame_queue.put(None)
+        # if ( not self.frame_queue.full() ):
+        #     self.frame_queue.put(None)
+        #self.frame_queue.send_frame_to_queue(None)
 
         self.logger.info('Stop')
 

@@ -191,10 +191,11 @@ class FaceRecognizer():
                 faceScores   = {}
 
                 # Decode the JSON message
-                message = self.input_queue.get(True)
+                message = self.input_queue.receive_frame_from_queue()
 
                 if ( message is None ):
-                    break
+                    time.sleep(0.01)
+                    continue
 
                 data = json.loads(message)
         
@@ -239,21 +240,23 @@ class FaceRecognizer():
                 #     output_queue.put(json_object)
 
                 # Put the JSON object into the queue
-                while self.output_queue.full():
-                    time.sleep(0.01)  # Sleep briefly if the queue is full
-                    if self.stop_event.is_set():
-                        break
+                # while self.output_queue.full():
+                #     time.sleep(0.01)  # Sleep briefly if the queue is full
+                #     if self.stop_event.is_set():
+                #         break
                     
-                if ( not self.output_queue.full() ):
-                    self.output_queue.put(json_object)
-                    self.logger.info( 'Put frame {}'.format(frame_id) )
-
-                #self.output_queue.put(json_object)
+                # if ( not self.output_queue.full() ):
+                #     self.output_queue.put(json_object)
+                #     self.logger.info( 'Put frame {}'.format(frame_id) )
 
                 elapsed = time.time() - dtot
                 self.logger.info("time total = {:.3f} estimated fps: {:.3f}".format(elapsed, 1/elapsed))
 
-            
+                self.output_queue.send_frame_to_queue(json_object)
+                self.logger.info( 'Put frame {}'.format(frame_id) )
+
+                #self.output_queue.put(json_object)
+
 
         #To ensure we can also deal with the user pressing Ctrl-C in the console
         #we have to check for the KeyboardInterrupt exception and break out of
@@ -261,9 +264,8 @@ class FaceRecognizer():
         except KeyboardInterrupt as e:
             pass
 
-        if ( not self.output_queue.full() ):
-            self.output_queue.put(None)
-            
+        self.send_frame_to_queue(None)
+       
         self.logger.info('Stop')
 
         #Destroy any OpenCV windows and exit the application

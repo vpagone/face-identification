@@ -70,10 +70,13 @@ class VideoShow:
 
             # Decode the JSON message
 
-            message = self.input_queue.get(True)
+            #message = self.input_queue.get(True)
+            message = self.input_queue.receive_frame_from_queue()
 
             if ( message is None ):
-                break
+                time.sleep(0.01)
+                continue
+            
             # Decode the JSON message
             data = json.loads(message)
     
@@ -182,13 +185,15 @@ class VideoShow:
             end_time = time.time()
             elapsed_time = end_time - start_time
 
-            self.logger.info('display time: {:.3f} '.format(elapsed_time))
+            #self.logger.info('display time: {:.3f} '.format(elapsed_time))
+            self.logger.info("time total = {:.3f} estimated fps: {:.3f}".format(elapsed_time, 1/elapsed_time))
+
 
             # 
             if ( elapsed_time < (1/self.fps)):
                  sleep_time = ((1/self.fps) - elapsed_time )
-                 time.sleep( sleep_time )
-                 self.logger.info('sleeping for: {:.3f} '.format(sleep_time))
+                 #time.sleep( sleep_time )
+                 #self.logger.info('sleeping for: {:.3f} '.format(sleep_time))
  
             # start_time = time.time() 
             # #time.sleep(1/self.fps)  # Update at roughly 20 FPS 
@@ -211,16 +216,18 @@ class VideoShow:
             #     self.output_queue.put(None)
 
             # Put the JSON object into the queue
-            while self.output_queue.full():
-                time.sleep(0.01)  # Sleep briefly if the queue is full
-                if self.stop_event.is_set():
-                    break
+            # while self.output_queue.full():
+            #     time.sleep(0.01)  # Sleep briefly if the queue is full
+            #     if self.stop_event.is_set():
+            #         break
                 
-            if ( not self.output_queue.full() ):
-                self.output_queue.put(message)
-                self.logger.info( 'Put frame {}'.format(frame_id) )
+            # if ( not self.output_queue.full() ):
+            #     self.output_queue.put(message)
+            #     self.logger.info( 'Put frame {}'.format(frame_id) )
+            self.output_queue.send_frame_to_queue(message)
 
         self.logger.info('Stop')
+        self.output_queue.send_frame_to_queue(None)
 
     def stop(self):
         self.stopped = True
