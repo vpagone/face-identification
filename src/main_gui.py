@@ -365,16 +365,16 @@ class VideoPlayer(QWidget):
                                                                                           self.stop_event))
                 self.shower_threads[i].start()
 
-        # for i in range(4):
-        #     if self.video_paths[i] != "":
-        #         self.recorder_threads[i] = threading.Thread(target=self.video_recorder, args=(i, 
-        #                                                                                   self.frame_queues_4[i],
-        #                                                                                   self.fps[i],
-        #                                                                                   self.duration[i],
-        #                                                                                   self.log_dirs[i],
-        #                                                                                   self.out_dirs[i],
-        #                                                                                   self.stop_event))
-        #         self.recorder_threads[i].start()
+        for i in range(4):
+            if self.video_paths[i] != "":
+                self.recorder_threads[i] = threading.Thread(target=self.video_recorder, args=(self.src_names[i], 
+                                                                                          self.frame_queues_4[i],
+                                                                                          self.fps[i],
+                                                                                          self.duration[i],
+                                                                                          self.log_dirs[i],
+                                                                                          self.out_dirs[i],
+                                                                                          self.stop_event))
+                self.recorder_threads[i].start()
 
     def stop_videos(self):
 
@@ -391,6 +391,9 @@ class VideoPlayer(QWidget):
             if thread:
                 thread.join()
         for thread in self.shower_threads:
+            if thread:
+                thread.join()
+        for thread in self.recorder_threads:
             if thread:
                 thread.join()
 

@@ -226,8 +226,9 @@ class VideoShow:
             #     self.logger.info( 'Put frame {}'.format(frame_id) )
             self.output_queue.send_frame_to_queue(message)
 
-        self.logger.info('Stop')
         self.output_queue.send_frame_to_queue(None)
+
+        self.logger.info('Stop')
 
     def stop(self):
         self.stopped = True

@@ -5,16 +5,17 @@ import os
 import base64
 import json
 import numpy as np
+import time
 
 class VideoRecorder:
     """
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, queue, fps, fragment_duration, logger, out_dir, stop_event):
+    def __init__(self, id, input_queue, fps, fragment_duration, logger, out_dir, stop_event):
 
         self.id = id
-        self.queue = queue
+        self.input_queue = input_queue
         self.fps = fps
         self.logger = logger
         self.out_dir = out_dir
@@ -57,10 +58,16 @@ class VideoRecorder:
             #frame = self.queue.get()
 
             # Decode the JSON message
-            message = self.queue.get(True)
+            # message = self.queue.get(True)
+
+            # if ( message is None ):
+            #     break
+
+            message = self.input_queue.receive_frame_from_queue()
 
             if ( message is None ):
-                break
+                time.sleep(0.01)
+                continue
 
             data = json.loads(message)
 

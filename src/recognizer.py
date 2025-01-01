@@ -264,7 +264,7 @@ class FaceRecognizer():
         except KeyboardInterrupt as e:
             pass
 
-        self.send_frame_to_queue(None)
+        self.output_queue.send_frame_to_queue(None)
        
         self.logger.info('Stop')
 

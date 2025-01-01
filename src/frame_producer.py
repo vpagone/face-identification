@@ -79,6 +79,8 @@ class FrameProducer:
         #     self.frame_queue.put(None)
         #self.frame_queue.send_frame_to_queue(None)
 
+        self.frame_queue.send_frame_to_queue(None)
+
         self.logger.info('Stop')
 
     def stop(self):
