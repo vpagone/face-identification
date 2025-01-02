@@ -66,11 +66,15 @@ class VideoRecorder:
             message = self.input_queue.receive_frame_from_queue()
 
             if ( message is None ):
-                time.sleep(0.01)
-                continue
+                 time.sleep(0.01)
+                 continue
 
             data = json.loads(message)
 
+            if not data:
+                    #time.sleep(0.01)
+                    break
+            
             frame_id = data['frame_id']
     
             # Extract and decode the image

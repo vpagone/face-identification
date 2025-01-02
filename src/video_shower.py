@@ -74,11 +74,14 @@ class VideoShow:
             message = self.input_queue.receive_frame_from_queue()
 
             if ( message is None ):
-                time.sleep(0.01)
-                continue
-            
-            # Decode the JSON message
+                 time.sleep(0.01)
+                 continue
+
             data = json.loads(message)
+
+            if not data:
+                #time.sleep(0.01)
+                break
     
             # Extract frame id
             frame_id = data['frame_id']
@@ -226,7 +229,8 @@ class VideoShow:
             #     self.logger.info( 'Put frame {}'.format(frame_id) )
             self.output_queue.send_frame_to_queue(message)
 
-        self.output_queue.send_frame_to_queue(None)
+        # put an empty json document
+        self.output_queue.send_frame_to_queue( json.dumps({}) )
 
         self.logger.info('Stop')
 

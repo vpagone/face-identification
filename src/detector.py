@@ -115,10 +115,14 @@ class FaceDetector():
                 message = self.input_queue.receive_frame_from_queue()
 
                 if ( message is None ):
-                    time.sleep(0.01)
-                    continue
+                     time.sleep(0.01)
+                     continue
 
                 data = json.loads(message)
+
+                if not data:
+                     #time.sleep(0.01)
+                     break
 
                 # Extract frame id
                 frame_id = data['frame_id']
@@ -313,7 +317,8 @@ class FaceDetector():
         #cv2.destroyAllWindows()
         #exit(0)
 
-        self.output_queue.send_frame_to_queue(None)
+        # put an empty json document
+        self.output_queue.send_frame_to_queue( json.dumps({}) )
 
         self.logger.info('Stop')
 

@@ -106,12 +106,15 @@ class FaceRecognizer():
             )
 
             # Print search results
-            print("Search Results:")
-            for hit in response['hits']['hits']:
-                print(f"Document ID: {hit['_id']}, Score: {hit['_score']}")
+            # print("Search Results:")
+            # for hit in response['hits']['hits']:
+            #     print(f"Document ID: {hit['_id']}, Score: {hit['_score']}")
 
             if ( len (response['hits']['hits']) == 0 ):
                 return False, ("", 0.0)
+            
+            # there is at least one hit, take the first one (the one with highest score)
+            hit = response['hits']['hits'][0]
             
             max_score = hit['_score'] - 1.0
             sim_user_id = hit['_source']['face_name']
@@ -194,10 +197,14 @@ class FaceRecognizer():
                 message = self.input_queue.receive_frame_from_queue()
 
                 if ( message is None ):
-                    time.sleep(0.01)
-                    continue
+                     time.sleep(0.01)
+                     continue
 
                 data = json.loads(message)
+
+                if not data:
+                     #time.sleep(0.01)
+                     break
         
                 # Extract frame id
                 frame_id = data['frame_id']
@@ -264,7 +271,8 @@ class FaceRecognizer():
         except KeyboardInterrupt as e:
             pass
 
-        self.output_queue.send_frame_to_queue(None)
+        # put an empty json document
+        self.output_queue.send_frame_to_queue( json.dumps({}) )
        
         self.logger.info('Stop')
 
