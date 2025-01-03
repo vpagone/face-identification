@@ -12,15 +12,16 @@ class VideoRecorder:
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, input_queue, fps, fragment_duration, logger, out_dir, stop_event):
+    def __init__(self, id, input_queue, output_queue, fps, fragment_duration, logger, out_dir, stop_event):
 
         self.id = id
         self.input_queue = input_queue
-        self.fps = fps
+        self.output_queue = output_queue
         self.logger = logger
         self.out_dir = out_dir
         self.stop_event = stop_event
 
+        self.fps = fps
         self.frames_per_fragment = self.fps * fragment_duration
 
     def decode_frame(self, encoded_frame):
@@ -125,7 +126,6 @@ class VideoRecorder:
                 video_out = cv2.VideoWriter(tmp_file_name,cv2.VideoWriter_fourcc('M','J','P','G'), self.fps, (640,480))
                 #setFaceNames = set()
 
-
             # Extract and decode the image
             frame = self.decode_frame(data['image'])
 
@@ -134,34 +134,34 @@ class VideoRecorder:
             self.logger.info('boxes: {}'.format(faceBoxesByFrame))            
             self.logger.info('scores: {}'.format(faceScoresByFrame))
 
-            for fid in faceBoxesByFrame.keys():
+            # for fid in faceBoxesByFrame.keys():
 
-                    tracked_position = faceBoxesByFrame[fid]
+            #         tracked_position = faceBoxesByFrame[fid]
                     
-                    t_x = int(tracked_position[0])
-                    t_y = int(tracked_position[1])
-                    t_w = int(tracked_position[2])
-                    t_h = int(tracked_position[3])
+            #         t_x = int(tracked_position[0])
+            #         t_y = int(tracked_position[1])
+            #         t_w = int(tracked_position[2])
+            #         t_h = int(tracked_position[3])
 
-                    thickness = 2
-                    scale = 0.6
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    green = (0, 255, 0)
-                    orange = (0, 165, 255)
+            #         thickness = 2
+            #         scale = 0.6
+            #         font = cv2.FONT_HERSHEY_SIMPLEX
+            #         green = (0, 255, 0)
+            #         orange = (0, 165, 255)
 
-                    if fid in faceNames.keys():
-                        cv2.rectangle(frame, (t_x, t_y),
-                                        (t_x + t_w , t_y + t_h),
-                                        (0, 255, 0) ,thickness, cv2.LINE_AA)
-                        text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
-                        cv2.putText(frame, text, 
-                                        (int(t_x + t_w/2), int(t_y)), 
-                                        font,
-                                        scale, green, thickness, cv2.LINE_AA)
-                    else:
-                        cv2.rectangle(frame, (t_x, t_y),
-                                        (t_x + t_w , t_y + t_h),
-                                        orange, thickness, cv2.LINE_AA)
+            #         if fid in faceNames.keys():
+            #             cv2.rectangle(frame, (t_x, t_y),
+            #                             (t_x + t_w , t_y + t_h),
+            #                             (0, 255, 0) ,thickness, cv2.LINE_AA)
+            #             text = "{0} ({1:.2f})".format(faceNames[fid], faceScores[fid])
+            #             cv2.putText(frame, text, 
+            #                             (int(t_x + t_w/2), int(t_y)), 
+            #                             font,
+            #                             scale, green, thickness, cv2.LINE_AA)
+            #         else:
+            #             cv2.rectangle(frame, (t_x, t_y),
+            #                             (t_x + t_w , t_y + t_h),
+            #                             orange, thickness, cv2.LINE_AA)
                         
             # Writing frame of the video
             video_out.write(frame)
@@ -197,10 +197,15 @@ class VideoRecorder:
 
                     os.remove(tmp_file_name)
 
+            self.output_queue.send_frame_to_queue(message)
+
         video_out.release()
         file_name=path=os.path.join(self.out_dir, str(start_frame_id) + '.avi')
         # mv tmp_file_name to out_dir
         os.rename(tmp_file_name, file_name)
+
+        # put an empty json document
+        self.output_queue.send_frame_to_queue( json.dumps({}) )
 
         self.logger.info('Stop')
 

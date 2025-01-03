@@ -18,6 +18,7 @@ from recognizer import FaceRecognizer
 from video_recorder import VideoRecorder
 from video_shower import VideoShow
 from simple_video_shower import SimpleVideoShow
+from video_decorator import VideoDecorator
 
 from rmq_queue_manager import RmqQueueManager
 
@@ -60,21 +61,26 @@ class VideoPlayer(QWidget):
         for queue in self.frame_queues_1:
             queue.init_connection()
 
-        # Create 4 queue managers to hold video frames produced by readers
+        # Create 4 queue managers to hold video frames produced by detectors
         self.frame_queues_2 = [RmqQueueManager("detector_output_queue_" + str(i)) for i in range(4)]
         for queue in self.frame_queues_2:
             queue.init_connection()
 
-        # Create 4 queue managers to hold video frames produced by readers
+        # Create 4 queue managers to hold video frames produced by recognizers
         self.frame_queues_3 = [RmqQueueManager("recognizer_output_queue_" + str(i)) for i in range(4)]
         for queue in self.frame_queues_3:
             queue.init_connection()
 
-        # Create 4 queue managers to hold video frames produced by readers
-        self.frame_queues_4 = [RmqQueueManager("displayer_output_queue_" + str(i)) for i in range(4)]
+        # Create 4 queue managers to hold video frames produced by decorators
+        self.frame_queues_4 = [RmqQueueManager("decorator_output_queue_" + str(i)) for i in range(4)]
         for queue in self.frame_queues_4:
             queue.init_connection()
 
+        # Create 4 queue managers to hold video frames produced by recorders
+        self.frame_queues_5 = [RmqQueueManager("recorder_output_queue_" + str(i)) for i in range(4)]
+        for queue in self.frame_queues_5:
+            queue.init_connection()
+        
         # # Create 4 queues to hold video frames produced by readers
         # frame_queues_1 = [queue.Queue(maxsize=100) for _ in range(4)]
         # self.frame_queues_1 = frame_queues_1
@@ -103,8 +109,9 @@ class VideoPlayer(QWidget):
         self.read_threads       = [None] * 4  # Store the threads
         self.detector_threads   = [None] * 4  # Store the threads
         self.recognizer_threads = [None] * 4  # Store the threads
-        self.shower_threads     = [None] * 4  # Store the threads
+        self.decorator_threads  = [None] * 4  # Store the threads
         self.recorder_threads   = [None] * 4  # Store the threads
+        self.shower_threads     = [None] * 4  # Store the threads
 
         # Create the stop event
         self.stop_event = threading.Event()
@@ -202,20 +209,25 @@ class VideoPlayer(QWidget):
         fr = FaceRecognizer(id, data_dir, input_queue, output_queue, logger, stop_event)
         fr.recognizeMultipleFaces()
 
-    def video_shower(self, i, input_queue, output_queue, fps, log_dir, label, list_widget, stop_event):
+    def video_decorator(self, i, input_queue, output_queue, log_dir, stop_event):
+        logger = get_thread_logger(log_dir, 'VideoDecorator')
+        vd = VideoDecorator(i, input_queue, output_queue, logger, stop_event)
+        vd.decorate()
+
+    def video_recorder(self, i, input_queue, output_queue, fps, duration, log_dir, out_dir, stop_event):
+        logger = get_thread_logger(log_dir, 'VideoRecorder')
+        vr = VideoRecorder(i, input_queue, output_queue, fps, duration, logger, out_dir, stop_event)
+        vr.record()
+
+    def video_shower(self, i, input_queue, fps, log_dir, label, list_widget, stop_event):
          logger = get_thread_logger(log_dir, 'VideoShower')
-         vs = VideoShow(i, input_queue, output_queue, fps, logger, label, list_widget, stop_event)
+         vs = VideoShow(i, input_queue, fps, logger, label, list_widget, stop_event)
          vs.show()
 
     # def video_shower(self, i, input_queue, output_queue, fps, log_dir, label, list_widget, stop_event):
     #      logger = get_thread_logger(log_dir, 'SimpleVideoShower')
     #      vs = SimpleVideoShow(i, input_queue, output_queue, fps, logger, label, list_widget, stop_event)
     #      vs.show()
-
-    def video_recorder(self, i, input_queue, fps, duration, log_dir, out_dir, stop_event):
-        logger = get_thread_logger(log_dir, 'VideoRecorder')
-        vr = VideoRecorder(i, input_queue, fps, duration, logger, out_dir, stop_event)
-        vr.record()
 
     def load_videos(self):
 
@@ -330,7 +342,8 @@ class VideoPlayer(QWidget):
                                                                                         self.video_paths[i], 
                                                                                         self.frame_queues_1[i], 
                                                                                         self.log_dirs[i], 
-                                                                                        self.stop_event))
+                                                                                        self.stop_event),
+                                                                                        name='reader_' + str(i))
                 self.read_threads[i].start()
 
         for i in range(4):
@@ -340,7 +353,8 @@ class VideoPlayer(QWidget):
                                                                                         self.frame_queues_1[i], 
                                                                                         self.frame_queues_2[i], 
                                                                                         self.log_dirs[i],
-                                                                                        self.stop_event))
+                                                                                        self.stop_event),
+                                                                                        name='detector_' + str(i))
                 self.detector_threads[i].start()
 
         for i in range(4):
@@ -350,31 +364,44 @@ class VideoPlayer(QWidget):
                                                                                         self.frame_queues_2[i], 
                                                                                         self.frame_queues_3[i], 
                                                                                         self.log_dirs[i],
-                                                                                        self.stop_event))
+                                                                                        self.stop_event),
+                                                                                        name='recognizer_' + str(i))
                 self.recognizer_threads[i].start()
 
         for i in range(4):
             if self.video_paths[i] != "":
-                self.shower_threads[i] = threading.Thread(target=self.video_shower, args=(self.src_names[i], 
+                self.decorator_threads[i] = threading.Thread(target=self.video_decorator, args=(self.src_names[i], 
                                                                                           self.frame_queues_3[i],
                                                                                           self.frame_queues_4[i],
-                                                                                          self.fps[i],
                                                                                           self.log_dirs[i],
-                                                                                          self.video_labels[i],
-                                                                                          self.events_list,
-                                                                                          self.stop_event))
-                self.shower_threads[i].start()
+                                                                                          self.stop_event),
+                                                                                          name='decorator_' + str(i))
+                self.decorator_threads[i].start()
 
         for i in range(4):
             if self.video_paths[i] != "":
                 self.recorder_threads[i] = threading.Thread(target=self.video_recorder, args=(self.src_names[i], 
                                                                                           self.frame_queues_4[i],
+                                                                                          self.frame_queues_5[i],
                                                                                           self.fps[i],
                                                                                           self.duration[i],
                                                                                           self.log_dirs[i],
                                                                                           self.out_dirs[i],
-                                                                                          self.stop_event))
+                                                                                          self.stop_event),
+                                                                                          name='recorder_' + str(i))
                 self.recorder_threads[i].start()
+
+        for i in range(4):
+            if self.video_paths[i] != "":
+                self.shower_threads[i] = threading.Thread(target=self.video_shower, args=(self.src_names[i], 
+                                                                                          self.frame_queues_5[i],
+                                                                                          self.fps[i],
+                                                                                          self.log_dirs[i],
+                                                                                          self.video_labels[i],
+                                                                                          self.events_list,
+                                                                                          self.stop_event),
+                                                                                          name='shower_' + str(i))  
+                self.shower_threads[i].start()
 
     def stop_videos(self):
 
@@ -390,12 +417,16 @@ class VideoPlayer(QWidget):
         for thread in self.recognizer_threads:
             if thread:
                 thread.join()
-        for thread in self.shower_threads:
+        for thread in self.decorator_threads:
             if thread:
                 thread.join()
         for thread in self.recorder_threads:
             if thread:
                 thread.join()
+        for thread in self.shower_threads:
+            if thread:
+                thread.join()
+
 
 def main():
 
