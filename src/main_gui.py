@@ -80,6 +80,11 @@ class VideoPlayer(QWidget):
         self.frame_queues_5 = [RmqQueueManager("recorder_output_queue_" + str(i)) for i in range(4)]
         for queue in self.frame_queues_5:
             queue.init_connection()
+
+        # Create 4 queue managers to hold video frames produced by showers
+        self.frame_queues_6 = [RmqQueueManager("shower_output_queue_" + str(i)) for i in range(4)]
+        for queue in self.frame_queues_6:
+            queue.init_connection()
         
         # # Create 4 queues to hold video frames produced by readers
         # frame_queues_1 = [queue.Queue(maxsize=100) for _ in range(4)]
@@ -219,9 +224,9 @@ class VideoPlayer(QWidget):
         vr = VideoRecorder(i, input_queue, output_queue, fps, duration, logger, out_dir, stop_event)
         vr.record()
 
-    def video_shower(self, i, input_queue, fps, log_dir, label, list_widget, stop_event):
+    def video_shower(self, i, input_queue, output_queue, fps, log_dir, label, list_widget, stop_event):
          logger = get_thread_logger(log_dir, 'VideoShower')
-         vs = VideoShow(i, input_queue, fps, logger, label, list_widget, stop_event)
+         vs = VideoShow(i, input_queue, output_queue, fps, logger, label, list_widget, stop_event)
          vs.show()
 
     # def video_shower(self, i, input_queue, output_queue, fps, log_dir, label, list_widget, stop_event):
@@ -395,6 +400,7 @@ class VideoPlayer(QWidget):
             if self.video_paths[i] != "":
                 self.shower_threads[i] = threading.Thread(target=self.video_shower, args=(self.src_names[i], 
                                                                                           self.frame_queues_5[i],
+                                                                                          self.frame_queues_6[i],
                                                                                           self.fps[i],
                                                                                           self.log_dirs[i],
                                                                                           self.video_labels[i],

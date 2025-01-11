@@ -16,10 +16,11 @@ class VideoShow:
     Class that continuously shows a frame using a dedicated thread.
     """
 
-    def __init__(self, id, input_queue, fps, logger, label, list_widget, stop_event):
+    def __init__(self, id, input_queue, output_queue, fps, logger, label, list_widget, stop_event):
 
         self.id = id
         self.input_queue = input_queue
+        self.output_queue = output_queue
         self.fps = fps
         self.logger = logger
         self.label = label
@@ -193,7 +194,13 @@ class VideoShow:
             #      sleep_time = ((1/self.fps) - elapsed_time )
             #      #time.sleep( sleep_time )
             #      #self.logger.info('sleeping for: {:.3f} '.format(sleep_time))
+
+            self.output_queue.send_frame_to_queue(message)
  
+
+        # put an empty json document
+        self.output_queue.send_frame_to_queue( json.dumps({}) )
+
         self.logger.info('Stop')
 
     def stop(self):
